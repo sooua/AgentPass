@@ -605,4 +605,38 @@ export class AgentPassCore {
   get rotationProviders(): RotationProvider[] {
     return this.rotations;
   }
+
+  /**
+   * Run any pending rotation jobs whose credential opts into auto-rotation
+   * (policy.auto_rotate_enabled) and whose type a RotationProvider supports.
+   * Manual jobs (no provider / not auto) are left for mark_rotation_complete.
+   */
+  async runAutoRotations(): Promise<{ ran: number; failed: number }> {
+    let ran = 0;
+    let failed = 0;
+    for (const job of this.repo.listRotationJobs()) {
+      if (job.status !== "pending") continue;
+      const cred = this.repo.getCredential(job.credential_id);
+      if (!cred) continue;
+      const policy = cred.rotation_policy_id
+        ? this.repo.getRotationPolicy(cred.rotation_policy_id)
+        : null;
+      if (!policy?.auto_rotate_enabled) continue;
+      const provider = this.rotations.find((p) => p.supports(cred.type));
+      if (!provider) continue;
+
+      this.repo.updateRotationJob(job.id, { status: "running", started_at: nowIso() });
+      try {
+        const target = job.target_id ? this.repo.getTarget(job.target_id) : null;
+        const { new_secret_value, version } = await provider.rotate({ credential: cred, target });
+        await this.markRotationSuccess(job.id, { new_secret_value, new_secret_version: version });
+        ran++;
+      } catch (e) {
+        this.markRotationFailed(job.id, { error_message: (e as Error).message });
+        failed++;
+      }
+    }
+    if (ran || failed) this.log.info("auto_rotations", { ran, failed });
+    return { ran, failed };
+  }
 }

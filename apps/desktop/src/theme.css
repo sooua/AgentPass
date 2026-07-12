@@ -46,6 +46,7 @@ a { color: var(--terracotta); text-decoration: none; }
   border-right: 1px solid var(--border-cream); position: sticky; top: 0; height: 100vh;
 }
 .brand { font-family: var(--serif); font-size: 25px; font-weight: 500; margin-bottom: 24px; }
+.brand-row { display: flex; align-items: center; gap: 10px; }
 .brand small { display: block; font-family: var(--sans); font-size: 12px; color: var(--stone); letter-spacing: 0.12px; }
 .navlink {
   display: block; padding: 8px 12px; border-radius: 8px; color: var(--olive);

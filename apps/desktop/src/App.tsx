@@ -33,7 +33,11 @@ export default function App() {
     <div className="app">
       <aside className="sidebar">
         <div className="brand">
-          agentpass<small>AI agent credential manager</small>
+          <span className="brand-row">
+            <img src="/logo.svg" width={28} height={28} alt="" />
+            agentpass
+          </span>
+          <small>AI agent credential manager</small>
         </div>
         {PAGES.map((p) => (
           <div key={p.id} className={`navlink ${page === p.id ? "active" : ""}`} onClick={() => setPage(p.id)}>

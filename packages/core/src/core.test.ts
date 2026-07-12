@@ -6,6 +6,7 @@ import { randomBytes } from "node:crypto";
 import { SqliteStore } from "@agentpass/storage-sqlite";
 import { LocalEncryptedStoreProvider } from "@agentpass/credential-providers";
 import { TempKeyFileCheckoutProvider } from "@agentpass/checkout-providers";
+import { SshKeyRotationProvider } from "@agentpass/rotation-providers";
 import { AgentPassCore } from "./core.js";
 
 const FAKE_PASSWORD = "FAKE-pw-do-not-use";
@@ -22,6 +23,7 @@ beforeEach(() => {
     repo: store,
     backends: [local],
     checkoutProviders: [new TempKeyFileCheckoutProvider(join(dir, "checkouts"))],
+    rotationProviders: [new SshKeyRotationProvider()],
   });
 });
 
@@ -88,6 +90,38 @@ describe("reveal + rotation lifecycle", () => {
     const res = await core.reveal(cred.id, { target_id: null, requested_by: "t", purpose: "p", ttl_seconds: 60 });
     expect(res.rotation_required).toBe(false);
     expect(core.getCredential(cred.id).status).toBe("active");
+  });
+});
+
+describe("auto rotation", () => {
+  it("runs a pending job via ssh-keygen when policy opts in", async () => {
+    const policy = core.createRotationPolicy({
+      name: "auto",
+      rotate_after_reveal: true,
+      rotation_grace_period_minutes: 0,
+      rotation_interval_days: null,
+      max_reveals_before_rotation: null,
+      auto_rotate_enabled: true,
+      approval_required: false,
+    });
+    const cred = await core.createCredential({
+      name: "vps-key", type: "ssh_private_key", provider: "local_encrypted",
+      secret_value: FAKE_KEY, metadata: {}, rotation_policy_id: policy.id,
+    });
+    // reveal flags rotation + creates a pending job
+    await core.reveal(cred.id, { target_id: null, requested_by: "t", purpose: "p", ttl_seconds: 60 });
+    expect(core.listRotationJobs().some((j) => j.status === "pending")).toBe(true);
+
+    const res = await core.runAutoRotations();
+    expect(res.ran).toBe(1);
+
+    const after = core.getCredential(cred.id);
+    expect(after.status).toBe("active");
+    expect(after.reveal_count_since_rotation).toBe(0);
+    // secret was replaced with a real generated key, not the fake input
+    const revealed = await core.reveal(cred.id, { target_id: null, requested_by: "t", purpose: "p", ttl_seconds: 60 });
+    expect(revealed.secret_value).not.toBe(FAKE_KEY);
+    expect(revealed.secret_value).toContain("OPENSSH PRIVATE KEY");
   });
 });
 

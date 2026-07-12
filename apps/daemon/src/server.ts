@@ -121,6 +121,8 @@ export async function buildServer(core: AgentPassCore, cfg: DaemonConfig): Promi
   app.post<{ Params: { id: string } }>("/rotation-jobs/:id/mark-failed", async (req) =>
     core.markRotationFailed(req.params.id, parse(markRotationFailedSchema, req.body)),
   );
+  // Trigger the auto-rotation pass on demand (also runs on a timer).
+  app.post("/rotation-jobs/run-auto", async () => core.runAutoRotations());
 
   // ---- audit ----
   app.get<{ Querystring: { limit?: string } }>("/audit-logs", async (req) => ({

@@ -8,8 +8,10 @@ async function main(): Promise<void> {
 
   // Clean up anything left over from a previous run, then sweep periodically.
   await core.sweepExpired();
+  await core.runAutoRotations();
   const timer = setInterval(() => {
     void core.sweepExpired();
+    void core.runAutoRotations();
   }, 30_000);
   timer.unref();
 
