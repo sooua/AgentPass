@@ -64,10 +64,10 @@ a { color: var(--terracotta); text-decoration: none; }
 
 /* Top bar: brand left, window controls right — one row, draggable. */
 .topbar {
-  height: 56px; flex: 0 0 56px; display: flex; align-items: center;
+  height: 52px; flex: 0 0 52px; display: flex; align-items: center;
   background: var(--ivory); border-bottom: 1px solid var(--border-cream); user-select: none;
 }
-.topbar-brand { display: flex; align-items: center; gap: 9px; padding-left: 20px; font-family: var(--serif); font-size: 19px; font-weight: 500; color: var(--near-black); }
+.topbar-brand { display: flex; align-items: center; gap: 9px; padding-left: 20px; font-family: var(--serif); font-size: 18px; font-weight: 500; color: var(--near-black); }
 .topbar-drag { flex: 1; align-self: stretch; }
 /* sweep-style action buttons: 34px bordered rounded, ivory, soft-shadow hover */
 .topbar-actions { display: flex; align-items: center; gap: 8px; padding-right: 8px; }

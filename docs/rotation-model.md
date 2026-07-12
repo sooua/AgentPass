@@ -31,6 +31,16 @@ treated as potentially compromised, so reveals drive rotation.
    - audits `rotation_success`.
 4. Failure path: `mark-failed` records the error and audits `rotation_failed`.
 
+## Auto rotation (DISABLED by default — unsafe without target push)
+
+No `RotationProvider` installs the new secret on the target yet, so auto-rotating
+an in-use credential (e.g. an SSH key) would replace the stored secret with one
+the server does not accept — **locking you out**. The daemon therefore does NOT
+run `runAutoRotations` unless `AGENTPASS_UNSAFE_AUTO_ROTATE=1` is set. Scheduled
+and after-reveal jobs are still created; complete them **manually** (rotate on the
+target, then `mark_rotation_complete` with the new secret). Enable auto only once
+a `GatewayProvider` applies the new secret end-to-end.
+
 ## Auto rotation (future)
 `RotationProvider` (`PasswordRotationProvider`, `SshKeyRotationProvider`) is the
 seam for generating + pushing a new secret to the target automatically. Stubs

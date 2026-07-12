@@ -1,27 +1,15 @@
 import { useEffect, useState } from "react";
+import { Cloud, CloudOff, Database, FileCode, Folder, History as HistoryIcon, RefreshCw, RotateCcw, Server, X } from "lucide-react";
 import { api } from "./api.js";
 import { usePrefs } from "./i18n.js";
 
-// ---- inline icons (warm, stroke-based) ----
-const ic = { fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round" } as const;
-const Github = () => (<svg width="22" height="22" viewBox="0 0 24 24" {...ic}><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.9a3.4 3.4 0 0 0-.9-2.6c3-.3 6.2-1.5 6.2-6.7A5.2 5.2 0 0 0 20 4.8a4.9 4.9 0 0 0-.1-3.6s-1.1-.3-3.6 1.4a12.3 12.3 0 0 0-6.6 0C7.2.9 6.1 1.2 6.1 1.2A4.9 4.9 0 0 0 6 4.8a5.2 5.2 0 0 0-1.4 3.6c0 5.2 3.2 6.4 6.2 6.7a3.4 3.4 0 0 0-.9 2.6V22" /></svg>);
-const Folder = () => (<svg width="22" height="22" viewBox="0 0 24 24" {...ic}><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" /></svg>);
-const Server = () => (<svg width="22" height="22" viewBox="0 0 24 24" {...ic}><rect x="2" y="2" width="20" height="8" rx="2" /><rect x="2" y="14" width="20" height="8" rx="2" /><path d="M6 6h.01M6 18h.01" /></svg>);
-const DatabaseI = () => (<svg width="22" height="22" viewBox="0 0 24 24" {...ic}><ellipse cx="12" cy="5" rx="9" ry="3" /><path d="M3 5v14c0 1.7 4 3 9 3s9-1.3 9-3V5M3 12c0 1.7 4 3 9 3s9-1.3 9-3" /></svg>);
-const CloudI = () => (<svg width="22" height="22" viewBox="0 0 24 24" {...ic}><path d="M18 10h-1.3A7 7 0 1 0 4 16h13a4 4 0 0 0 1-8z" /></svg>);
-const Refresh = ({ spin }: { spin?: boolean }) => (<svg className={spin ? "spin" : ""} width="15" height="15" viewBox="0 0 24 24" {...ic}><path d="M23 4v6h-6M1 20v-6h6" /><path d="M20.5 9A9 9 0 0 0 5.6 5.6L1 10m22 4l-4.6 4.4A9 9 0 0 1 3.5 15" /></svg>);
-const HistoryI = () => (<svg width="15" height="15" viewBox="0 0 24 24" {...ic}><path d="M3 3v5h5" /><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8" /><path d="M12 7v5l4 2" /></svg>);
-const CloudOff = () => (<svg width="16" height="16" viewBox="0 0 24 24" {...ic}><path d="M22.6 16.9A5 5 0 0 0 18 10h-1.3a7 7 0 0 0-1.9-3.9M1 1l22 22M5 5a7 7 0 0 0-1 11h11" /></svg>);
-const Close = () => (<svg width="18" height="18" viewBox="0 0 24 24" {...ic}><path d="M18 6L6 18M6 6l12 12" /></svg>);
-const Restore = () => (<svg width="12" height="12" viewBox="0 0 24 24" {...ic}><path d="M3 3v5h5" /><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8" /></svg>);
-
 const PROVIDERS = [
-  { id: "gist", name: "GitHub Gist", Icon: Github, available: true },
+  { id: "gist", name: "GitHub Gist", Icon: FileCode, available: true },
   { id: "local", nameKey: "sync.localFolder", Icon: Folder, available: true },
   { id: "webdav", name: "WebDAV", Icon: Server, available: true },
-  { id: "s3", name: "S3", Icon: DatabaseI, available: true },
-  { id: "gdrive", name: "Google Drive", Icon: CloudI, available: false },
-  { id: "onedrive", name: "Microsoft OneDrive", Icon: CloudI, available: false },
+  { id: "s3", name: "S3", Icon: Database, available: true },
+  { id: "gdrive", name: "Google Drive", Icon: Cloud, available: false },
+  { id: "onedrive", name: "Microsoft OneDrive", Icon: Cloud, available: false },
 ] as const;
 
 function relTime(ms: number, t: (k: string) => string): string {
@@ -82,7 +70,7 @@ export function SyncModal({ onClose }: { onClose: () => void }) {
             <button className={tab === "services" ? "on" : ""} onClick={() => { setTab("services"); setHistory(null); }}>{t("sync.tabServices")}</button>
             <button className={tab === "status" ? "on" : ""} onClick={() => { setTab("status"); setHistory(null); }}>{t("sync.tabStatus")}</button>
           </div>
-          <button className="icon-btn ghost" onClick={onClose}><Close /></button>
+          <button className="icon-btn ghost" onClick={onClose}><X size={18} /></button>
         </div>
 
         <div className="sync-body">
@@ -101,7 +89,7 @@ export function SyncModal({ onClose }: { onClose: () => void }) {
                 return (
                   <div key={p.id} className="sync-card">
                     <div className="sync-card-row">
-                      <div className="sync-ic"><p.Icon /></div>
+                      <div className="sync-ic"><p.Icon size={22} /></div>
                       <div className="sync-meta">
                         <div className="sync-name">{name}<span className={`dot ${connected ? "on" : ""}`} /></div>
                         <div className="muted">
@@ -111,12 +99,12 @@ export function SyncModal({ onClose }: { onClose: () => void }) {
                       </div>
                       {connected ? (
                         <div className="sync-actions">
-                          <button className="card-action" onClick={runSync} disabled={busy}><Refresh spin={busy} />{t("sync.run")}</button>
-                          <button className="card-action" onClick={openHistory}><HistoryI />{t("sync.history")}</button>
-                          <button className="icon-btn ghost danger" title={t("sync.disconnect")} onClick={async () => { setState(await api.syncDisconnect()); }}><CloudOff /></button>
+                          <button className="card-action" onClick={runSync} disabled={busy}><RefreshCw size={15} className={busy ? "spin" : ""} />{t("sync.run")}</button>
+                          <button className="card-action" onClick={openHistory}><HistoryIcon size={15} />{t("sync.history")}</button>
+                          <button className="icon-btn ghost danger" title={t("sync.disconnect")} onClick={async () => { setState(await api.syncDisconnect()); }}><CloudOff size={16} /></button>
                         </div>
                       ) : p.available ? (
-                        <button className="btn-primary btn btn-sm" onClick={() => setConnectingId(isConnecting ? null : p.id)}><CloudI />{t("sync.connect")}</button>
+                        <button className="btn-primary btn btn-sm" onClick={() => setConnectingId(isConnecting ? null : p.id)}><Cloud size={15} />{t("sync.connect")}</button>
                       ) : (
                         <span className="soon-chip">{t("sync.notYet")}</span>
                       )}
@@ -218,7 +206,7 @@ function History({ versions, loading, busy, t, onBack, onRestore }: { versions: 
         : <div className="sync-list">{versions.map((v) => (
             <div key={v.id} className="version-row">
               <div><div>{new Date(v.createdAt).toLocaleString()}</div><div className="muted mono">{String(v.id).slice(0, 18)}{v.label ? " · " + v.label : ""}</div></div>
-              <button className="btn btn-sm" disabled={busy} onClick={() => onRestore(v)}><Restore />{t("sync.restore")}</button>
+              <button className="btn btn-sm" disabled={busy} onClick={() => onRestore(v)}><RotateCcw size={12} />{t("sync.restore")}</button>
             </div>))}</div>}
     </div>
   );

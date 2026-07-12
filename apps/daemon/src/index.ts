@@ -18,10 +18,16 @@ async function main(): Promise<void> {
 
   // Maintenance pass: clean expired access, enqueue due rotations, run auto
   // rotations, prune old terminal records, auto-sync if enabled.
+  // Auto-rotation is DISABLED by default: no RotationProvider can install the new
+  // secret on the target yet, so auto-rotating an in-use credential (e.g. an SSH
+  // key) would lock you out. Scheduled/after-reveal jobs are created and left for
+  // manual mark-complete. Opt in only once a GatewayProvider applies the new
+  // secret to the target. See docs/rotation-model.md.
+  const autoRotate = process.env.AGENTPASS_UNSAFE_AUTO_ROTATE === "1";
   const maintain = async () => {
     await core.sweepExpired();
     core.scanDueRotations();
-    await core.runAutoRotations();
+    if (autoRotate) await core.runAutoRotations();
     core.pruneOld(Number(process.env.AGENTPASS_RETENTION_DAYS ?? 30));
     await engine.autoTick();
   };

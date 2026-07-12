@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState } from "react";
+import { Minus, Moon, RefreshCw, Settings as SettingsIcon, Sun, X } from "lucide-react";
 import { api, getToken, getUrl, setConn } from "./api.js";
 import { usePrefs, type Lang, type Theme } from "./i18n.js";
 import { SyncModal } from "./SyncModal.js";
@@ -95,10 +96,10 @@ export default function App() {
         </div>
         <div className="topbar-drag" data-tauri-drag-region />
         <div className="topbar-actions">
-          <button className="iconbtn" title={t("common.refresh")} onClick={() => setNonce((n) => n + 1)}><RefreshIcon /></button>
+          <button className="iconbtn" title={t("common.refresh")} onClick={() => setNonce((n) => n + 1)}><RefreshCw size={18} /></button>
           <button className="iconbtn lang" title={t("settings.language")} onClick={() => setLang(lang === "zh" ? "en" : "zh")}>{lang === "zh" ? "中" : "EN"}</button>
-          <button className="iconbtn" title={t("settings.theme")} onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>{theme === "dark" ? <MoonIcon /> : <SunIcon />}</button>
-          <button className={`iconbtn ${page === "settings" ? "on" : ""}`} title={t("nav.settings")} onClick={() => setPage("settings")}><GearIcon /></button>
+          <button className="iconbtn" title={t("settings.theme")} onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>{theme === "dark" ? <Moon size={18} /> : <Sun size={18} />}</button>
+          <button className={`iconbtn ${page === "settings" ? "on" : ""}`} title={t("nav.settings")} onClick={() => setPage("settings")}><SettingsIcon size={18} /></button>
         </div>
         <WindowButtons />
       </div>
@@ -128,9 +129,6 @@ export default function App() {
 
 // Window controls (Tauri only) live in the top bar; window drags by the brand.
 const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
-const RefreshIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 4v6h-6M1 20v-6h6" /><path d="M20.5 9A9 9 0 0 0 5.6 5.6L1 10m22 4l-4.6 4.4A9 9 0 0 1 3.5 15" /></svg>
-);
 async function tauriWin() {
   const { getCurrentWindow } = await import("@tauri-apps/api/window");
   return getCurrentWindow();
@@ -140,31 +138,15 @@ function WindowButtons() {
   return (
     <div className="win-btns">
       <button className="win-btn" aria-label="minimize" title="minimize" onClick={() => void tauriWin().then((w) => w.minimize())}>
-        <svg width="16" height="16" viewBox="0 0 16 16"><rect x="3" y="7.4" width="10" height="1.2" fill="currentColor" /></svg>
+        <Minus size={16} />
       </button>
       <button className="win-btn close" aria-label="close" title="close" onClick={() => void tauriWin().then((w) => w.close())}>
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M3 3l10 10M13 3L3 13" /></svg>
+        <X size={16} />
       </button>
     </div>
   );
 }
 
-const SunIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-    <circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4" />
-  </svg>
-);
-const MoonIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" />
-  </svg>
-);
-const GearIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="12" cy="12" r="3" />
-    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-  </svg>
-);
 
 function Seg<T extends string>({ value, onChange, options }: { value: T; onChange: (v: T) => void; options: [T, string][] }) {
   return (
