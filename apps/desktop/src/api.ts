@@ -48,4 +48,10 @@ export const api = {
   scheduleRotation: (id: string, b: unknown) => req("POST", `/credentials/${id}/rotation-jobs`, b),
   markRotationSuccess: (id: string, b: unknown) => req("POST", `/rotation-jobs/${id}/mark-success`, b),
   audit: (f: Record<string, string | undefined> = {}) => req("GET", "/audit-logs" + qs({ limit: "200", ...f })),
+  syncState: () => req("GET", "/sync/state"),
+  syncPassphrase: (passphrase: string) => req("POST", "/sync/passphrase", { passphrase }),
+  syncAuto: (enabled: boolean) => req("POST", "/sync/auto", { enabled }),
+  syncConnect: (provider: string, cfg: unknown) => req("POST", `/sync/connect/${provider}`, cfg),
+  syncDisconnect: () => req("POST", "/sync/disconnect"),
+  syncRun: () => req("POST", "/sync/run"),
 };

@@ -89,6 +89,83 @@ export default function App() {
   );
 }
 
+function SyncPanel() {
+  const { t } = usePrefs();
+  const [state, setState] = useState<any>(null);
+  const [pass, setPass] = useState("");
+  const [provider, setProvider] = useState("local");
+  const [cfg, setCfg] = useState<Record<string, string>>({});
+  const [msg, setMsg] = useState("");
+  const refresh = () => api.syncState().then(setState).catch((e) => setMsg(e.message));
+  useEffect(() => { refresh(); }, []);
+  const field = (k: string) => (e: any) => setCfg({ ...cfg, [k]: e.target.value });
+
+  const connect = async () => {
+    setMsg("");
+    try {
+      if (pass) await api.syncPassphrase(pass);
+      const s = await api.syncConnect(provider, cfg);
+      setState(s);
+      setMsg(s.connected ? "" : s.lastMessage || "");
+    } catch (e: any) { setMsg(e.message); }
+  };
+  const run = async () => {
+    setMsg("");
+    try { const r = await api.syncRun(); setMsg(`${r.status}${r.message ? " — " + r.message : ""}`); refresh(); }
+    catch (e: any) { setMsg(e.message); }
+  };
+
+  const FIELDS: Record<string, [string, string][]> = {
+    local: [["dir", "sync.dir"]],
+    gist: [["token", "sync.token"]],
+    webdav: [["url", "sync.url"], ["username", "sync.username"], ["password", "sync.password"]],
+    s3: [["endpoint", "sync.endpoint"], ["region", "sync.region"], ["bucket", "sync.bucket"], ["accessKeyId", "sync.accessKey"], ["secretAccessKey", "sync.secretKey"], ["prefix", "sync.prefix"]],
+  };
+
+  return (
+    <div className="card">
+      <h3>{t("sync.title")}</h3>
+      <div className="subtitle" style={{ marginBottom: 8 }}>{t("sync.sub")}</div>
+      <div className="risk risk-high">{t("sync.warn")}</div>
+
+      <label>{t("sync.passphrase")}</label>
+      <input type="password" value={pass} onChange={(e) => setPass(e.target.value)} placeholder="••••••••" />
+
+      <label>{t("sync.provider")}</label>
+      <select value={provider} onChange={(e) => { setProvider(e.target.value); setCfg({}); }}>
+        <option value="local">Local folder</option><option value="gist">GitHub Gist</option>
+        <option value="webdav">WebDAV</option><option value="s3">S3</option>
+      </select>
+      {FIELDS[provider]!.map(([k, key]) => (
+        <div key={k}>
+          <label>{t(key)}</label>
+          <input type={k.includes("secret") || k === "password" || k === "token" ? "password" : "text"} value={cfg[k] || ""} onChange={field(k)} />
+        </div>
+      ))}
+
+      <div className="toolbar" style={{ marginTop: 16 }}>
+        <button className="btn-primary btn" onClick={connect}>{t("sync.connect")}</button>
+        <button className="btn" onClick={run} disabled={!state?.connected}>{t("sync.run")}</button>
+        {state?.connected && <button className="btn" onClick={async () => { await api.syncDisconnect(); refresh(); }}>{t("sync.disconnect")}</button>}
+      </div>
+
+      {state && (
+        <div className="toolbar" style={{ marginTop: 12 }}>
+          <Badge v={state.connected ? "active" : "expired"} />
+          <span className="muted">
+            {state.connected ? `${t("sync.connected")} · ${state.provider}${state.account ? " · " + state.account : ""}` : t("sync.notConnected")}
+            {state.lastSyncedAt ? ` · ${time(new Date(state.lastSyncedAt).toISOString())}` : ""}
+          </span>
+          <label className="inline-check">
+            <input type="checkbox" checked={!!state.autoSync} onChange={async (e) => { setState(await api.syncAuto(e.target.checked)); }} /> {t("sync.auto")}
+          </label>
+        </div>
+      )}
+      {msg && <div className="muted" style={{ marginTop: 8 }}>{msg}</div>}
+    </div>
+  );
+}
+
 const SunIcon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
     <circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4" />
@@ -601,6 +678,7 @@ function Settings() {
           <span className="muted">{status}</span>
         </div>
       </div>
+      <SyncPanel />
       <div className="card">
         <h3>{t("settings.appearance")}</h3>
         <div className="row">
