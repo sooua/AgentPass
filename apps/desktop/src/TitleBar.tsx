@@ -11,7 +11,7 @@ export function TitleBar() {
   return (
     <div className="titlebar" data-tauri-drag-region>
       <div className="titlebar-brand" data-tauri-drag-region>
-        <img src="/logo.svg" width={16} height={16} alt="" />
+        <img src="logo.svg" width={16} height={16} alt="" />
         agentpass
       </div>
       {isTauri && (

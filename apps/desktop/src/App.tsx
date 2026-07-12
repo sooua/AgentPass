@@ -68,7 +68,7 @@ export default function App() {
         <aside className="sidebar">
           <div className="brand">
             <span className="brand-row">
-              <img src="/logo.svg" width={28} height={28} alt="" />
+              <img src="logo.svg" width={28} height={28} alt="" />
               agentpass
             </span>
             <small>{t("brand.sub")}</small>
