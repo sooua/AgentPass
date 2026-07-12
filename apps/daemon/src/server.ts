@@ -69,6 +69,21 @@ export async function buildServer(core: AgentPassCore, engine: SyncEngine, cfg: 
     return reply.code(500).send({ error: { code: "internal", message: "internal error" } });
   });
 
+  // ---- live change stream (SSE) — replaces UI polling ----
+  app.get("/events", (req, reply) => {
+    reply.raw.writeHead(200, {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+    });
+    reply.raw.write(": connected\n\n");
+    const unsub = core.subscribe((e) => {
+      reply.raw.write(`data: ${JSON.stringify({ action: e.action, resource_type: e.resource_type, ts: e.timestamp })}\n\n`);
+    });
+    const ping = setInterval(() => reply.raw.write(": ping\n\n"), 25000);
+    req.raw.on("close", () => { clearInterval(ping); unsub(); });
+  });
+
   app.get("/health", async () => ({
     status: "ok",
     service: "agentpass",

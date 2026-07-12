@@ -65,19 +65,43 @@ function useCopy(): { state: "" | "ok" | "fail"; copy: (text: string) => void } 
   return { state, copy };
 }
 
-// Poll the daemon; on failure re-read conn.json and retry (C1/C2). Returns the
-// live connection state for the topbar indicator.
-function useConnection(): boolean {
+// Live SSE stream from the daemon (C3): replaces polling. Fires onEvent on every
+// change so the active page refetches; tracks connection state; reconnects on
+// drop (re-reading conn.json first).
+function useLiveConnection(onEvent: () => void): boolean {
   const [ok, setOk] = useState(false);
   useEffect(() => {
     let alive = true;
-    const ping = async () => {
-      try { await api.health(); if (alive) setOk(true); }
-      catch { if (alive) { setOk(false); await autoConnect(); } }
+    let ctrl: AbortController | null = null;
+    const connect = async () => {
+      if (!alive) return;
+      await autoConnect();
+      ctrl = new AbortController();
+      try {
+        const res = await fetch(getUrl() + "/events", { headers: { authorization: `Bearer ${getToken()}` }, signal: ctrl.signal });
+        if (!res.ok || !res.body) throw new Error("no stream");
+        setOk(true);
+        onEvent(); // initial load now that we're authed
+        const reader = res.body.getReader();
+        const dec = new TextDecoder();
+        let buf = "";
+        while (alive) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buf += dec.decode(value, { stream: true });
+          let i: number;
+          while ((i = buf.indexOf("\n\n")) >= 0) {
+            const chunk = buf.slice(0, i);
+            buf = buf.slice(i + 2);
+            if (chunk.startsWith("data:")) onEvent();
+          }
+        }
+      } catch { /* stream dropped */ }
+      if (alive) { setOk(false); setTimeout(() => void connect(), 3000); }
     };
-    void ping();
-    const id = setInterval(() => void ping(), 5000);
-    return () => { alive = false; clearInterval(id); };
+    void connect();
+    return () => { alive = false; ctrl?.abort(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   return ok;
 }
@@ -102,10 +126,8 @@ export default function App() {
   const [page, setPage] = useState<Page>("targets");
   const [nonce, setNonce] = useState(0);
   const { t, theme, setTheme } = usePrefs();
-  const connected = useConnection();
+  const connected = useLiveConnection(() => setNonce((n) => n + 1));
   const [locked, setLocked] = useState(hasPin());
-  useEffect(() => { void autoConnect().then(() => setNonce((n) => n + 1)); }, []);
-  useEffect(() => { if (connected) setNonce((n) => n + 1); }, [connected]);
   // Idle auto-lock (only when a PIN is set).
   useEffect(() => {
     if (!hasPin() || locked) return;

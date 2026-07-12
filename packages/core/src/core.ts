@@ -73,6 +73,7 @@ export class AgentPassCore {
   private readonly checkouts: Map<string, CheckoutProvider>;
   private readonly rotations: RotationProvider[];
   private readonly rotationBackoffMinutes: number;
+  private readonly listeners = new Set<(e: AuditLog) => void>();
   readonly log: Logger;
 
   constructor(deps: CoreDeps) {
@@ -82,6 +83,12 @@ export class AgentPassCore {
     this.rotations = deps.rotationProviders ?? [];
     this.rotationBackoffMinutes = deps.rotationBackoffMinutes ?? 60;
     this.log = deps.logger ?? createLogger();
+  }
+
+  /** Subscribe to change events (one per audited mutation, already redacted). */
+  subscribe(fn: (e: AuditLog) => void): () => void {
+    this.listeners.add(fn);
+    return () => this.listeners.delete(fn);
   }
 
   // -------- audit --------
@@ -94,6 +101,9 @@ export class AgentPassCore {
       resource_id: entry.resource_id,
       risk_level: entry.risk_level,
     });
+    for (const l of this.listeners) {
+      try { l(log); } catch { /* a bad listener must not break the write */ }
+    }
   }
 
   listAudit(query: AuditQuery = {}): AuditLog[] {
