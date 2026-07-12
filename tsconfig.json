@@ -1,0 +1,14 @@
+{
+  "files": [],
+  "references": [
+    { "path": "packages/shared" },
+    { "path": "packages/core" },
+    { "path": "packages/storage-sqlite" },
+    { "path": "packages/credential-providers" },
+    { "path": "packages/checkout-providers" },
+    { "path": "packages/rotation-providers" },
+    { "path": "packages/gateway-adapters" },
+    { "path": "apps/daemon" },
+    { "path": "apps/mcp-server" }
+  ]
+}

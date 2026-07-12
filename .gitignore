@@ -1,0 +1,15 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.agentpass/
+*.local
+.DS_Store
+
+# Tauri
+apps/desktop/src-tauri/target/
+apps/desktop/src-tauri/gen/
+
+# secrets / data — never commit
+*.sqlite
+*.sqlite-*
+data/

@@ -1,0 +1,48 @@
+# MCP Tools
+
+`apps/mcp-server` exposes these tools to Claude Code over stdio. It reads
+`AGENTPASS_URL` (default `http://127.0.0.1:4747`) and `AGENTPASS_TOKEN`
+(or `~/.agentpass/token`) and forwards authenticated calls to the daemon.
+
+| Tool | Inputs | Purpose |
+|------|--------|---------|
+| `list_targets` | — | List targets |
+| `get_target` | `target_id` | One target |
+| `list_credentials` | — | Credential metadata (no secrets) |
+| `reveal_secret` | `credential_id, purpose, requested_by, ttl_seconds?, target_id?` | **HIGH RISK** plaintext reveal |
+| `checkout_ssh_access` | `target_id, purpose, requested_by, ttl_seconds?, mode?, credential_id?` | **Recommended** temporary SSH access |
+| `revoke_checkout` | `checkout_id` | Revoke + wipe artifacts |
+| `get_checkout_status` | `checkout_id` | One checkout |
+| `list_active_checkouts` | — | Active checkouts |
+| `get_rotation_status` | `credential_id` | Rotation state + jobs |
+| `schedule_rotation` | `credential_id, reason?, target_id?` | Create rotation job |
+| `mark_rotation_complete` | `rotation_job_id, new_secret_value, new_secret_version?` | Complete rotation |
+| `list_audit_logs` | `limit?` | Recent audit entries |
+
+## `reveal_secret` behavior
+- Returns `secret_value` (plaintext) plus `rotation_required`, `rotate_before`, `reveal_id`, `rotation_job_id`.
+- Writes an audit log entry (`reveal_secret`).
+- If the credential's policy has `rotate_after_reveal=true` (or the reveal count
+  crosses `max_reveals_before_rotation`), sets credential `status=rotation_required`
+  and creates a `RotationJob(reason=after_reveal)`.
+
+## `checkout_ssh_access` behavior
+- `mode=temp_key_file` (default) writes a 0600 key + `ssh_config`, returns
+  `ssh_command` and `expires_at`. `ssh_agent_socket` is reserved (throws until implemented).
+- Writes an audit log entry (`checkout_ssh_access`). Does **not** return a
+  long-term secret — use `reveal_secret` for that.
+
+## Register with Claude Code
+`~/.claude.json` (or project `.mcp.json`):
+```json
+{
+  "mcpServers": {
+    "agentpass": {
+      "command": "node",
+      "args": ["D:/dev/Owner/agentpass/apps/mcp-server/dist/index.js"],
+      "env": { "AGENTPASS_URL": "http://127.0.0.1:4747" }
+    }
+  }
+}
+```
+The daemon must be running first (the MCP server reads its token file).

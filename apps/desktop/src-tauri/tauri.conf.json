@@ -1,0 +1,31 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "agentpass",
+  "version": "0.1.0",
+  "identifier": "dev.agentpass.desktop",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:5273",
+    "beforeDevCommand": "pnpm --filter @agentpass/desktop dev",
+    "beforeBuildCommand": "pnpm --filter @agentpass/desktop build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "agentpass",
+        "width": 1200,
+        "height": 800,
+        "minWidth": 900,
+        "minHeight": 600
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; connect-src 'self' http://127.0.0.1:4747 http://localhost:4747; style-src 'self' 'unsafe-inline'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": ["icons/icon.png"]
+  }
+}
