@@ -23,40 +23,42 @@ export class TempKeyFileCheckoutProvider implements CheckoutProvider {
   constructor(private readonly baseDir: string) {}
 
   supports(target: Target, credential: Credential): boolean {
-    return target.type === "ssh" && credential.type === "ssh_private_key";
+    return target.type === "ssh" && (credential.type === "ssh_private_key" || credential.type === "password");
   }
 
   async create(input: CheckoutCreateInput): Promise<CheckoutArtifact> {
     const dir = join(this.baseDir, input.checkout_id);
     mkdirSync(dir, { recursive: true });
     secureLocalFile(dir, 0o700);
-
-    const keyPath = join(dir, "id_key");
-    const key = input.secret_value.endsWith("\n")
-      ? input.secret_value
-      : input.secret_value + "\n";
-    writeFileSync(keyPath, key, { mode: 0o600 });
-    secureLocalFile(keyPath); // 0600 + Windows ACL
-
     const alias = aliasFor(input.target);
     const configPath = join(dir, "config");
-    const config = [
+    const common = [
       `# agentpass temporary checkout ${input.checkout_id}`,
       `Host ${alias}`,
       `    HostName ${input.target.host}`,
       `    User ${input.target.username}`,
       `    Port ${input.target.port}`,
-      `    IdentityFile ${keyPath}`,
-      `    IdentitiesOnly yes`,
       `    StrictHostKeyChecking accept-new`,
-      "",
-    ].join("\n");
-    writeFileSync(configPath, config, { mode: 0o600 });
+    ];
 
-    return {
-      checkout_path: dir,
-      ssh_command: `ssh -F ${configPath} ${alias}`,
-    };
+    if (input.credential.type === "password") {
+      // Password login: write the password to a 0600 file (never into the result)
+      // and drive the system ssh client via sshpass. Requires `sshpass` installed.
+      const pwPath = join(dir, "password");
+      writeFileSync(pwPath, input.secret_value, { mode: 0o600 });
+      secureLocalFile(pwPath);
+      const config = [...common, `    PreferredAuthentications password`, `    PubkeyAuthentication no`, ""].join("\n");
+      writeFileSync(configPath, config, { mode: 0o600 });
+      return { checkout_path: dir, ssh_command: `sshpass -f ${pwPath} ssh -F ${configPath} ${alias}` };
+    }
+
+    const keyPath = join(dir, "id_key");
+    const key = input.secret_value.endsWith("\n") ? input.secret_value : input.secret_value + "\n";
+    writeFileSync(keyPath, key, { mode: 0o600 });
+    secureLocalFile(keyPath); // 0600 + Windows ACL
+    const config = [...common, `    IdentityFile ${keyPath}`, `    IdentitiesOnly yes`, ""].join("\n");
+    writeFileSync(configPath, config, { mode: 0o600 });
+    return { checkout_path: dir, ssh_command: `ssh -F ${configPath} ${alias}` };
   }
 
   async cleanup(session: CheckoutSession): Promise<void> {

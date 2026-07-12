@@ -232,6 +232,7 @@ function Targets() {
   return (
     <>
       <Head title={t("targets.title")} sub={t("targets.sub")} onRefresh={reload} />
+      <QuickAdd onDone={reload} />
       <div className="card">
         <h3>{t("targets.add")}</h3>
         <div className="row">
@@ -300,21 +301,72 @@ function Targets() {
   );
 }
 
+// ---------------- Quick add (one-step target + credential) ----------------
+function QuickAdd({ onDone }: { onDone: () => void }) {
+  const { t } = usePrefs();
+  const [f, setF] = useState({ name: "", host: "", port: 22, username: "", environment: "dev", credType: "password", secret: "" });
+  const [err, setErr] = useState("");
+  const set = (k: string, v: any) => setF({ ...f, [k]: v });
+  const submit = async () => {
+    setErr("");
+    try {
+      const cred = await api.createCredential({ name: `${f.name} · ${f.credType}`, type: f.credType, secret_value: f.secret, provider: "local_encrypted" });
+      await api.createTarget({
+        name: f.name, type: "ssh", host: f.host, port: Number(f.port), username: f.username,
+        environment: f.environment, tags: [], credential_ids: [cred.id],
+      });
+      setF({ name: "", host: "", port: 22, username: "", environment: "dev", credType: "password", secret: "" });
+      onDone();
+    } catch (e: any) { setErr(e.message); }
+  };
+  return (
+    <div className="card">
+      <h3>{t("quickadd.title")}</h3>
+      <div className="subtitle" style={{ marginBottom: 8 }}>{t("quickadd.sub")}</div>
+      <div className="row">
+        <div><label>{t("common.name")}</label><input value={f.name} onChange={(e) => set("name", e.target.value)} /></div>
+        <div><label>{t("targets.host")}</label><input value={f.host} onChange={(e) => set("host", e.target.value)} /></div>
+        <div><label>{t("targets.port")}</label><input type="number" value={f.port} onChange={(e) => set("port", Number(e.target.value))} /></div>
+      </div>
+      <div className="row">
+        <div><label>{t("targets.username")}</label><input value={f.username} onChange={(e) => set("username", e.target.value)} /></div>
+        <div><label>{t("targets.environment")}</label>
+          <select value={f.environment} onChange={(e) => set("environment", e.target.value)}><option>dev</option><option>staging</option><option>prod</option></select>
+        </div>
+        <div><label>{t("quickadd.credType")}</label>
+          <select value={f.credType} onChange={(e) => set("credType", e.target.value)}><option value="password">password</option><option value="ssh_private_key">ssh_private_key</option></select>
+        </div>
+      </div>
+      <label>{t("quickadd.secret")}</label>
+      <textarea value={f.secret} onChange={(e) => set("secret", e.target.value)} placeholder={t("creds.fakeHint")} />
+      {err && <div className="err">{err}</div>}
+      <div style={{ marginTop: 12 }}>
+        <button className="btn-primary btn" disabled={!f.name || !f.host || !f.username || !f.secret} onClick={submit}>{t("quickadd.create")}</button>
+      </div>
+    </div>
+  );
+}
+
 // ---------------- Credentials ----------------
 function Credentials() {
   const { t } = usePrefs();
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("");
   const { data, err, reload } = useList(() => api.credentials({ q: q || undefined, status: status || undefined }), [q, status]);
-  const [form, setForm] = useState({ name: "", type: "password", secret_value: "" });
+  const [form, setForm] = useState({ name: "", type: "password", secret_value: "", metadata: "" });
   const [fErr, setFErr] = useState("");
   const [revealCred, setRevealCred] = useState<any>(null);
 
   const submit = async () => {
     setFErr("");
+    let metadata: Record<string, unknown> = {};
+    if (form.metadata.trim()) {
+      try { metadata = JSON.parse(form.metadata); }
+      catch { setFErr("metadata must be valid JSON"); return; }
+    }
     try {
-      await api.createCredential({ ...form, provider: "local_encrypted" });
-      setForm({ name: "", type: "password", secret_value: "" });
+      await api.createCredential({ name: form.name, type: form.type, secret_value: form.secret_value, metadata, provider: "local_encrypted" });
+      setForm({ name: "", type: "password", secret_value: "", metadata: "" });
       reload();
     } catch (e: any) { setFErr(e.message); }
   };
@@ -335,6 +387,8 @@ function Credentials() {
         </div>
         <label>{t("creds.secret")} {form.type === "ssh_private_key" && t("creds.sshHint")}</label>
         <textarea value={form.secret_value} onChange={(e) => setForm({ ...form, secret_value: e.target.value })} placeholder={t("creds.fakeHint")} />
+        <label>{t("creds.metadata")}</label>
+        <input value={form.metadata} onChange={(e) => setForm({ ...form, metadata: e.target.value })} placeholder={t("creds.metadataHint")} />
         {fErr && <div className="err">{fErr}</div>}
         <div style={{ marginTop: 12 }}><button className="btn-primary btn" onClick={submit}>{t("creds.add")}</button></div>
       </div>

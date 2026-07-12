@@ -38,6 +38,9 @@ Base URL: `http://127.0.0.1:4747` · Auth: `Authorization: Bearer <token>`
 ## Checkout (RECOMMENDED)
 - `POST /targets/:id/checkout` `{ requested_by, purpose, ttl_seconds?, mode?, credential_id? }`
   → `{ checkout_id, mode, ssh_command, checkout_path, expires_at }`
+- Works for **ssh_private_key** creds (`ssh -F <cfg> <alias>`) and **password**
+  creds (`sshpass -f <pwfile> ssh …`; the password is written to a 0600 file, never
+  returned in the response — requires `sshpass` on the client).
 - `GET /checkouts` → `{ checkouts: CheckoutSession[] }`
 - `GET /checkouts/:id` → `CheckoutSession`
 - `POST /checkouts/:id/revoke` → `CheckoutSession`
