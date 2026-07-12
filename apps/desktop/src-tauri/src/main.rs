@@ -13,12 +13,22 @@ fn main() {
                 .min_inner_size(900.0, 600.0)
                 .decorations(false)
                 .build()?;
+
             // Tauri's decorations(false) does not remove the native title bar in
-            // this WebView2 environment. Strip WS_CAPTION directly off the HWND —
-            // this definitively removes the OS title bar while keeping WS_THICKFRAME
-            // (resize). The custom titlebar is drawn in the web UI.
+            // this WebView2 env, and WebView2 re-applies WS_CAPTION after the
+            // initial strip. So strip once now and again on window events (the
+            // guard makes it a no-op once the caption is already gone).
             #[cfg(windows)]
-            strip_native_caption(&win);
+            {
+                strip_native_caption(&win);
+                let w = win.clone();
+                win.on_window_event(move |event| {
+                    use tauri::WindowEvent::{Focused, Resized};
+                    if matches!(event, Focused(_) | Resized(_)) {
+                        strip_native_caption(&w);
+                    }
+                });
+            }
             Ok(())
         })
         .run(tauri::generate_context!())
@@ -31,29 +41,22 @@ fn strip_native_caption(win: &tauri::WebviewWindow) {
         GetWindowLongPtrW, SetWindowLongPtrW, SetWindowPos, GWL_STYLE, SWP_FRAMECHANGED,
         SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, WS_CAPTION,
     };
-    match win.hwnd() {
-        Ok(hwnd) => {
-            let h = hwnd.0 as *mut core::ffi::c_void;
-            unsafe {
-                let style = GetWindowLongPtrW(h, GWL_STYLE);
-                let new = style & !(WS_CAPTION as isize);
-                SetWindowLongPtrW(h, GWL_STYLE, new);
-                SetWindowPos(
-                    h,
-                    core::ptr::null_mut(),
-                    0,
-                    0,
-                    0,
-                    0,
-                    SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER,
-                );
-                let after = GetWindowLongPtrW(h, GWL_STYLE);
-                eprintln!(
-                    "[agentpass] strip caption: hwnd={:?} style {:#x} -> req {:#x} -> after {:#x}",
-                    h, style, new, after
-                );
-            }
+    let Ok(hwnd) = win.hwnd() else { return };
+    let h = hwnd.0 as *mut core::ffi::c_void;
+    unsafe {
+        let style = GetWindowLongPtrW(h, GWL_STYLE);
+        if style & (WS_CAPTION as isize) == 0 {
+            return; // caption already stripped — avoid an event loop
         }
-        Err(e) => eprintln!("[agentpass] hwnd() failed: {e}"),
+        SetWindowLongPtrW(h, GWL_STYLE, style & !(WS_CAPTION as isize));
+        SetWindowPos(
+            h,
+            core::ptr::null_mut(),
+            0,
+            0,
+            0,
+            0,
+            SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER,
+        );
     }
 }
