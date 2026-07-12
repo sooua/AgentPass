@@ -58,6 +58,67 @@ Dev without building first: `pnpm daemon:dev` (tsx watch).
 If `4747` is blocked (`EACCES` — some Windows setups reserve it), set
 `AGENTPASS_PORT=17470` (and matching `AGENTPASS_URL` for the MCP server / UI).
 
+## For AI agents (Claude Code / Codex)
+
+Agents reach agentpass through the **MCP server** — they never touch key files
+directly. Prereqs: the daemon is running, and your targets + credentials exist
+(create them in the desktop app's *Quick add server* form, which links a target
+to its credential in one step).
+
+**1. Register the MCP server**
+
+Claude Code — `~/.claude.json` or a project `.mcp.json`:
+```json
+{
+  "mcpServers": {
+    "agentpass": {
+      "command": "node",
+      "args": ["/abs/path/to/agentpass/apps/mcp-server/dist/index.js"],
+      "env": { "AGENTPASS_URL": "http://127.0.0.1:17470" }
+    }
+  }
+}
+```
+Or: `claude mcp add agentpass -e AGENTPASS_URL=http://127.0.0.1:17470 -- node /abs/path/to/agentpass/apps/mcp-server/dist/index.js`
+
+Codex — add the same entry under `mcp_servers` in your Codex config (`command` /
+`args` / `env` identical).
+
+The token is read automatically from `~/.agentpass/token` — don't put it in the
+config. **`AGENTPASS_URL` must match the daemon's port** (use `17470` if `4747`
+is blocked on your machine). Build the server first: `pnpm build`.
+
+**2. Tools exposed** (16)
+```
+list_targets · search_targets · get_target · set_target_credentials
+list_credentials · reveal_secret · list_reveal_requests · approve_reveal_request
+checkout_ssh_access · revoke_checkout · get_checkout_status · list_active_checkouts
+get_rotation_status · schedule_rotation · mark_rotation_complete · list_audit_logs
+```
+
+**3. Typical flow** — "log into a VPS and deploy". Just tell Claude Code:
+> Use agentpass to check out SSH access to web-01, then run the deploy.
+
+Under the hood it calls:
+1. `search_targets({ q: "web" })` → finds `web-01`
+2. `checkout_ssh_access({ target_id, purpose: "deploy", requested_by: "claude-code", ttl_seconds: 900 })`
+   → returns `ssh -F /tmp/.../config web-01`
+3. runs that command in its shell → logged in. Temp key, auto-expires (15 min), audited.
+4. `revoke_checkout` to end early (optional).
+
+**Two modes** (the tool descriptions steer agents to the safe one):
+- **`checkout_ssh_access`** — *recommended.* Temporary, expiring SSH access; no
+  long-term secret handed to the agent.
+- **`reveal_secret`** — *high risk.* Returns plaintext (password / token /
+  kubeconfig). Audited; may flag rotation. If policy requires approval it returns
+  `403 approval_required` → approve it in the app's **Approvals** page → the agent
+  retries with the `approval_id`.
+
+Gotchas: `checkout_ssh_access` needs the target to have a linked
+`ssh_private_key` credential (set it in the UI or via `set_target_credentials`);
+password checkout returns an `sshpass`-based command (install `sshpass`); if the
+daemon is down the tools return a clear "daemon unreachable — start it" error.
+
 ## Demo flow (matches acceptance criteria)
 ```bash
 TOKEN=$(cat ~/.agentpass/token); H="Authorization: Bearer $TOKEN"; U=http://127.0.0.1:4747
