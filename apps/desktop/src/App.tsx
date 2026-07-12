@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, getToken, getUrl, setConn } from "./api.js";
 import { usePrefs, type Lang, type Theme } from "./i18n.js";
-import { TitleBar } from "./TitleBar.js";
 import { SyncModal } from "./SyncModal.js";
 import { checkForUpdate, installAndRestart, type UpdateInfo } from "./updater.js";
 
@@ -64,45 +63,65 @@ export default function App() {
   const [page, setPage] = useState<Page>("targets");
   const { t } = usePrefs();
   return (
-    <div className="root-col">
-      <TitleBar />
-      <div className="app">
-        <aside className="sidebar">
-          <div className="brand">
-            <span className="brand-row">
-              <img src="logo.svg" width={28} height={28} alt="" />
-              agentpass
-            </span>
-            <small>{t("brand.sub")}</small>
+    <div className="app">
+      <aside className="sidebar">
+        {/* No titlebar — drag the window by the brand area. */}
+        <div className="brand" data-tauri-drag-region>
+          <span className="brand-row" data-tauri-drag-region>
+            <img src="logo.svg" width={28} height={28} alt="" data-tauri-drag-region />
+            agentpass
+          </span>
+          <small data-tauri-drag-region>{t("brand.sub")}</small>
+        </div>
+        {PAGES.map((p) => (
+          <div key={p.id} className={`navlink ${page === p.id ? "active" : ""}`} onClick={() => setPage(p.id)}>
+            {t(p.key)}
           </div>
-          {PAGES.map((p) => (
-            <div key={p.id} className={`navlink ${page === p.id ? "active" : ""}`} onClick={() => setPage(p.id)}>
-              {t(p.key)}
-            </div>
-          ))}
-          <div className="side-controls">
-            <button
-              className={`icon-btn ${page === "settings" ? "on" : ""}`}
-              aria-label={t("nav.settings")}
-              title={t("nav.settings")}
-              onClick={() => setPage("settings")}
-            >
-              <GearIcon />
-            </button>
-          </div>
-        </aside>
-        <main className="main">
-          {page === "targets" && <Targets />}
-          {page === "credentials" && <Credentials />}
-          {page === "reveals" && <Reveals />}
-          {page === "checkouts" && <Checkouts />}
-          {page === "rotation" && <Rotation />}
-          {page === "requests" && <Requests />}
-          {page === "audit" && <Audit />}
-          {page === "settings" && <Settings />}
-        </main>
-      </div>
+        ))}
+        <div className="side-controls">
+          <button
+            className={`icon-btn ${page === "settings" ? "on" : ""}`}
+            aria-label={t("nav.settings")}
+            title={t("nav.settings")}
+            onClick={() => setPage("settings")}
+          >
+            <GearIcon />
+          </button>
+          <WindowButtons />
+        </div>
+      </aside>
+      <main className="main">
+        {page === "targets" && <Targets />}
+        {page === "credentials" && <Credentials />}
+        {page === "reveals" && <Reveals />}
+        {page === "checkouts" && <Checkouts />}
+        {page === "rotation" && <Rotation />}
+        {page === "requests" && <Requests />}
+        {page === "audit" && <Audit />}
+        {page === "settings" && <Settings />}
+      </main>
     </div>
+  );
+}
+
+// Minimal window controls (Tauri only) — the app has no titlebar, so these live
+// in the sidebar footer; the window is dragged by the brand area above.
+const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+async function tauriWin() {
+  const { getCurrentWindow } = await import("@tauri-apps/api/window");
+  return getCurrentWindow();
+}
+function WindowButtons() {
+  if (!isTauri) return null;
+  return (
+    <>
+      <button className="icon-btn" aria-label="minimize" title="minimize" onClick={() => void tauriWin().then((w) => w.minimize())}>
+        <svg width="16" height="16" viewBox="0 0 16 16"><rect x="3" y="7.4" width="10" height="1.2" fill="currentColor" /></svg>
+      </button>
+      <button className="icon-btn danger-hover" aria-label="close" title="close" onClick={() => void tauriWin().then((w) => w.close())}>
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M3 3l10 10M13 3L3 13" /></svg>
+      </button>
+    </>
   );
 }
 

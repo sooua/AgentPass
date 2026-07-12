@@ -71,13 +71,15 @@ a { color: var(--terracotta); text-decoration: none; }
 .tb-btn:hover { background: var(--sand); color: var(--near-black); }
 .tb-close:hover { background: var(--crimson); color: #fff; }
 
-.app { display: flex; flex: 1; min-height: 0; }
+.app { display: flex; height: 100vh; overflow: hidden; }
 
 /* sidebar */
 .sidebar {
   width: 240px; padding: 24px 16px; background: var(--ivory);
-  border-right: 1px solid var(--border-cream); height: 100%; overflow-y: auto;
+  border-right: 1px solid var(--border-cream); height: 100vh; overflow-y: auto;
 }
+.brand { -webkit-user-select: none; user-select: none; }
+.icon-btn.danger-hover:hover { color: var(--crimson); }
 .main { overflow-y: auto; }
 .icon-btn {
   width: 38px; height: 38px; display: inline-flex; align-items: center; justify-content: center;
