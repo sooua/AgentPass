@@ -155,7 +155,102 @@ describe("approval gate", () => {
   });
 });
 
+describe("approval gate — deny & dedup", () => {
+  const gated = () =>
+    core.createRotationPolicy({
+      name: "gated", rotate_after_reveal: false, rotation_grace_period_minutes: 0,
+      rotation_interval_days: null, max_reveals_before_rotation: null,
+      auto_rotate_enabled: false, approval_required: true,
+    });
+
+  it("reuses one pending request and rejects a denied approval", async () => {
+    const p = gated();
+    const cred = await core.createCredential({
+      name: "pw", type: "password", provider: "local_encrypted",
+      secret_value: FAKE_PASSWORD, metadata: {}, rotation_policy_id: p.id,
+    });
+    const args = { target_id: null, requested_by: "agent", purpose: "p", ttl_seconds: 60 };
+
+    await expect(core.reveal(cred.id, args)).rejects.toMatchObject({ code: "approval_required" });
+    await expect(core.reveal(cred.id, args)).rejects.toMatchObject({ code: "approval_required" });
+    // dedup: still exactly one pending request, not two
+    expect(core.listRevealRequests().filter((r) => r.status === "pending")).toHaveLength(1);
+
+    const req = core.listRevealRequests()[0]!;
+    core.decideRevealRequest(req.id, false, { decided_by: "me" });
+    await expect(core.reveal(cred.id, { ...args, approval_id: req.id })).rejects.toMatchObject({ code: "reveal_denied" });
+  });
+
+  it("does not consume the approval when the reveal itself fails", async () => {
+    const p = gated();
+    const cred = await core.createCredential({
+      name: "pw", type: "password", provider: "local_encrypted",
+      secret_value: FAKE_PASSWORD, metadata: {}, rotation_policy_id: p.id,
+    });
+    // corrupt the secret ref so revealSecret throws after approval is resolved
+    store.updateCredential(cred.id, { secret_ref: "sref_missing" });
+    const args = { target_id: null, requested_by: "a", purpose: "p", ttl_seconds: 60 };
+    await expect(core.reveal(cred.id, args)).rejects.toMatchObject({ code: "approval_required" });
+    const req = core.listRevealRequests()[0]!;
+    core.decideRevealRequest(req.id, true, { decided_by: "me" });
+    await expect(core.reveal(cred.id, { ...args, approval_id: req.id })).rejects.toThrow();
+    // approval survives the failed reveal (still approved, not consumed)
+    expect(core.getRevealRequest(req.id).status).toBe("approved");
+  });
+});
+
+describe("rotation failure backoff (B2)", () => {
+  it("does not recreate a scheduled job every scan after a failure", async () => {
+    const cred = await core.createCredential({
+      name: "t", type: "api_token", provider: "local_encrypted",
+      secret_value: "FAKE", metadata: {}, rotation_policy_id: null,
+    });
+    store.updateCredential(cred.id, { next_rotation_due_at: "2000-01-01T00:00:00.000Z" });
+    expect(core.scanDueRotations()).toBe(1);
+    const job = core.listRotationJobs().find((j) => j.reason === "scheduled")!;
+
+    core.markRotationFailed(job.id, { error_message: "boom" });
+    expect(core.getRotationJob(job.id).status).toBe("failed");
+    // due date was pushed into the future → next scan creates nothing
+    expect(core.scanDueRotations()).toBe(0);
+    expect(core.listRotationJobs().filter((j) => j.reason === "scheduled")).toHaveLength(1);
+  });
+});
+
+describe("prune checkouts", () => {
+  it("deletes terminal checkouts older than retention", async () => {
+    const cred = await core.createCredential({
+      name: "k", type: "ssh_private_key", provider: "local_encrypted",
+      secret_value: FAKE_KEY, metadata: {}, rotation_policy_id: null,
+    });
+    const target = core.createTarget({
+      name: "h", type: "ssh", host: "1.1.1.1", port: 22, username: "u",
+      tags: [], environment: "dev", credential_ids: [cred.id],
+    });
+    const chk = await core.checkout(target.id, { purpose: "p", requested_by: "a", ttl_seconds: 900, mode: "temp_key_file" });
+    await core.revokeCheckout(chk.checkout_id);
+    store.updateCheckout(chk.checkout_id, { created_at: "2000-01-01T00:00:00.000Z" });
+    expect(core.pruneOld(30).checkouts).toBe(1);
+    expect(core.listCheckouts()).toHaveLength(0);
+  });
+});
+
 describe("delete cascade", () => {
+  it("deleteTarget revokes the target's active checkouts", async () => {
+    const cred = await core.createCredential({
+      name: "k", type: "ssh_private_key", provider: "local_encrypted",
+      secret_value: FAKE_KEY, metadata: {}, rotation_policy_id: null,
+    });
+    const target = core.createTarget({
+      name: "h", type: "ssh", host: "1.1.1.1", port: 22, username: "u",
+      tags: [], environment: "dev", credential_ids: [cred.id],
+    });
+    const chk = await core.checkout(target.id, { purpose: "p", requested_by: "a", ttl_seconds: 900, mode: "temp_key_file" });
+    await core.deleteTarget(target.id);
+    expect(core.getCheckout(chk.checkout_id).status).toBe("revoked");
+    expect(() => core.getTarget(target.id)).toThrow();
+  });
+
   it("unlinks credential from targets and revokes its checkouts on delete", async () => {
     const cred = await core.createCredential({
       name: "k", type: "ssh_private_key", provider: "local_encrypted",

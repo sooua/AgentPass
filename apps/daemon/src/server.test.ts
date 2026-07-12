@@ -82,6 +82,12 @@ describe("daemon HTTP", () => {
     expect(c2.status).toBe("revoked");
   });
 
+  it("rejects an oversized secret (>1 MiB)", async () => {
+    const res = await post("/credentials", { name: "big", type: "api_token", secret_value: "x".repeat(1024 * 1024 + 1) });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error.code).toBe("validation_error");
+  });
+
   it("gates reveal behind approval when the policy requires it", async () => {
     const pol = (await post("/rotation-policies", { name: "gated", approval_required: true, rotate_after_reveal: false })).json();
     const cred = (await post("/credentials", { name: "pw", type: "password", secret_value: "FAKE", rotation_policy_id: pol.id })).json();

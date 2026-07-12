@@ -49,8 +49,19 @@ When a credential's policy sets `approval_required`, `reveal_secret` is blocked:
 it opens a pending `RevealRequest` and returns `403 approval_required` with the
 request id. An operator approves it (UI Approvals page / `POST
 /reveal-requests/:id/approve` / MCP `approve_reveal_request`), then the caller
-retries `reveal` with `approval_id` (single-use). Use this to require human
-sign-off before prod plaintext reaches an agent.
+retries `reveal` with `approval_id` (single-use). To avoid request spam, a
+second blocked reveal for the same (credential, requester) reuses the existing
+pending request instead of creating a new one.
+
+> ⚠️ **This is a workflow speed-bump, NOT a security boundary in the MVP.** The
+> approve endpoint is protected by the *same* single local token as `reveal`. An
+> agent that can call `reveal_secret` therefore also holds the token needed to
+> call `approve` and can self-approve. The gate only stops a caller that doesn't
+> know the approve step; it does not stop a compromised/confused agent that has
+> the token. Real enforcement needs an **independent approver credential** (a
+> second token, or approval restricted to an authenticated human UI session) —
+> tracked as a follow-up. Treat `approval_required` today as "make the reveal
+> deliberate + auditable," not "gate the agent out."
 
 ## File permissions
 

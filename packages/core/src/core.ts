@@ -35,7 +35,7 @@ import type {
   UpdateRotationPolicyInput,
   UpdateTargetInput,
 } from "@agentpass/shared";
-import { approvalRequired, badRequest, conflict, notFound, notSupported } from "./errors.js";
+import { AppError, approvalRequired, badRequest, conflict, notFound, notSupported } from "./errors.js";
 import type { Logger } from "./logger.js";
 import { createLogger } from "./logger.js";
 import type {
@@ -51,6 +51,8 @@ export interface CoreDeps {
   checkoutProviders: CheckoutProvider[]; // keyed by .mode
   rotationProviders?: RotationProvider[];
   logger?: Logger;
+  /** Minutes to defer a scheduled rotation after a failure. Default 60. */
+  rotationBackoffMinutes?: number;
 }
 
 const riskForEnv = (env: Environment | undefined, base: RiskLevel): RiskLevel => {
@@ -68,6 +70,7 @@ export class AgentPassCore {
   private readonly backends: Map<string, CredentialBackend>;
   private readonly checkouts: Map<string, CheckoutProvider>;
   private readonly rotations: RotationProvider[];
+  private readonly rotationBackoffMinutes: number;
   readonly log: Logger;
 
   constructor(deps: CoreDeps) {
@@ -75,6 +78,7 @@ export class AgentPassCore {
     this.backends = new Map(deps.backends.map((b) => [b.kind, b]));
     this.checkouts = new Map(deps.checkoutProviders.map((c) => [c.mode, c]));
     this.rotations = deps.rotationProviders ?? [];
+    this.rotationBackoffMinutes = deps.rotationBackoffMinutes ?? 60;
     this.log = deps.logger ?? createLogger();
   }
 
@@ -261,9 +265,11 @@ export class AgentPassCore {
     const policyForApproval = c.rotation_policy_id
       ? this.repo.getRotationPolicy(c.rotation_policy_id)
       : null;
-    if (policyForApproval?.approval_required) {
-      this.enforceApproval(c.id, input);
-    }
+    // Resolve (but do NOT consume) the approval up front; consume only after the
+    // reveal actually succeeds so a transient failure doesn't waste the approval.
+    const approvalToConsume = policyForApproval?.approval_required
+      ? this.resolveApproval(c.id, input)
+      : null;
 
     const backend = this.backendFor(c.provider);
     const secret = await backend.revealSecret(c.secret_ref, {
@@ -271,6 +277,7 @@ export class AgentPassCore {
       requested_by: input.requested_by,
       purpose: input.purpose,
     });
+    if (approvalToConsume) this.repo.updateRevealRequest(approvalToConsume, { status: "consumed" });
 
     const ts = nowIso();
     const policy = c.rotation_policy_id
@@ -380,17 +387,30 @@ export class AgentPassCore {
   }
 
   // -------- reveal approval gate --------
-  private enforceApproval(credentialId: string, input: RevealInput): void {
+  /**
+   * Validate an approval without consuming it. Returns the request id the caller
+   * must consume after a successful reveal, or throws (approval_required /
+   * conflict / bad_request) and opens/reuses a pending request when none is given.
+   */
+  private resolveApproval(credentialId: string, input: RevealInput): string {
     if (input.approval_id) {
       const req = this.repo.getRevealRequest(input.approval_id);
       if (!req || req.credential_id !== credentialId)
         throw badRequest("approval_id does not match this credential");
       if (req.status === "consumed") throw conflict("approval already used");
+      if (req.status === "denied") throw new AppError("reveal_denied", "reveal request was denied", 403);
       if (req.status !== "approved") throw approvalRequired(req.id);
-      this.repo.updateRevealRequest(req.id, { status: "consumed" });
-      return;
+      return req.id;
     }
-    // No approval supplied — open a pending request and block.
+    // No approval supplied — reuse an existing pending request for this
+    // (credential, requester) instead of spamming new ones, then block.
+    const existing = this.repo
+      .listRevealRequests()
+      .find(
+        (r) => r.status === "pending" && r.credential_id === credentialId && r.requested_by === input.requested_by,
+      );
+    if (existing) throw approvalRequired(existing.id);
+
     const req: RevealRequest = {
       id: newId("rreq"),
       credential_id: credentialId,
@@ -615,13 +635,15 @@ export class AgentPassCore {
     return created;
   }
 
-  /** Delete terminal reveals/checkouts older than retentionDays so tables don't grow forever. */
-  pruneOld(retentionDays = 30): { reveals: number; checkouts: number } {
+  /** Delete terminal reveals/checkouts/reveal-requests older than retentionDays so tables don't grow forever. */
+  pruneOld(retentionDays = 30): { reveals: number; checkouts: number; reveal_requests: number } {
     const before = addDays(nowIso(), -retentionDays);
     const reveals = this.repo.pruneReveals(before);
     const checkouts = this.repo.pruneCheckouts(before);
-    if (reveals || checkouts) this.log.info("prune_old", { reveals, checkouts, retentionDays });
-    return { reveals, checkouts };
+    const reveal_requests = this.repo.pruneRevealRequests(before);
+    if (reveals || checkouts || reveal_requests)
+      this.log.info("prune_old", { reveals, checkouts, reveal_requests, retentionDays });
+    return { reveals, checkouts, reveal_requests };
   }
 
   /** Operational snapshot for /health and dashboards. */
@@ -762,6 +784,15 @@ export class AgentPassCore {
       completed_at: ts,
       error_message: input.error_message,
     });
+    // Back off scheduled retries: only interval-based credentials carry a due
+    // date; push it forward so scanDueRotations doesn't recreate a job every tick.
+    const cred = this.repo.getCredential(job.credential_id);
+    if (cred?.next_rotation_due_at) {
+      this.repo.updateCredential(cred.id, {
+        next_rotation_due_at: addMinutes(ts, this.rotationBackoffMinutes),
+        updated_at: ts,
+      });
+    }
     this.audit({
       actor: "system",
       action: "rotation_failed",

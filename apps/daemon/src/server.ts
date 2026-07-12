@@ -6,6 +6,7 @@ import fastifyStatic from "@fastify/static";
 import { ZodError, type ZodTypeAny } from "zod";
 import { AppError, type AgentPassCore } from "@agentpass/core";
 import {
+  MAX_SECRET_BYTES,
   auditQuerySchema,
   checkoutSchema,
   createCredentialSchema,
@@ -35,7 +36,9 @@ const parse = <T>(schema: ZodTypeAny, data: unknown): T => {
 };
 
 export async function buildServer(core: AgentPassCore, cfg: DaemonConfig): Promise<FastifyInstance> {
-  const app = Fastify({ logger: false });
+  // Body limit sits above MAX_SECRET_BYTES so the schema (not the transport) is
+  // what rejects an oversized secret — giving a clean 400 validation_error.
+  const app = Fastify({ logger: false, bodyLimit: MAX_SECRET_BYTES + 512 * 1024 });
   await app.register(cors, { origin: true }); // UI dev server is same-machine only
 
   // ---- local auth token (skip health + static UI) ----

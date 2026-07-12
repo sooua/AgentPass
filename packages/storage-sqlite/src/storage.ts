@@ -185,6 +185,16 @@ export class SqliteStore implements Repository, SecretBlobStore {
   updateRevealRequest(id: string, patch: Partial<RevealRequest>): RevealRequest | null {
     return this.patchRow<RevealRequest>("reveal_requests", id, patch);
   }
+  pruneRevealRequests(beforeIso: string): number {
+    const res = this.db
+      .prepare(
+        `DELETE FROM reveal_requests
+         WHERE json_extract(data,'$.status') IN ('consumed','denied')
+           AND json_extract(data,'$.created_at') < ?`,
+      )
+      .run(beforeIso);
+    return res.changes as number;
+  }
 
   // ---- checkouts ----
   createCheckout(s: CheckoutSession): void {

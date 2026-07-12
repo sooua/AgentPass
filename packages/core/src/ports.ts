@@ -116,6 +116,8 @@ export interface Repository {
   getRevealRequest(id: string): RevealRequest | null;
   listRevealRequests(): RevealRequest[];
   updateRevealRequest(id: string, patch: Partial<RevealRequest>): RevealRequest | null;
+  /** Delete decided (consumed/denied) reveal requests older than the given ISO time. */
+  pruneRevealRequests(beforeIso: string): number;
 
   // checkouts
   createCheckout(s: CheckoutSession): void;
