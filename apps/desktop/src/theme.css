@@ -18,11 +18,12 @@
   --border-cream: #f0eee6;
   --border-warm: #e8e6dc;
   --ring-warm: #d1cfc5;
-  /* Anthropic Serif/Sans/Mono are proprietary; these bundled fonts are the
-     closest offline substitutes per the Claude design system. */
-  --serif: "Anthropic Serif", "Source Serif 4", Georgia, serif;
-  --sans: "Anthropic Sans", "Inter", system-ui, Arial, sans-serif;
-  --mono: "Anthropic Mono", "IBM Plex Mono", ui-monospace, "SF Mono", monospace;
+  /* Font stacks aligned with TokenWatch for cross-project consistency.
+     Anthropic Serif/Sans/Mono are proprietary; the bundled fonts below
+     (Source Serif 4 / Inter / JetBrains Mono) are the shared offline substitutes. */
+  --serif: "Anthropic Serif", "Source Serif 4", "Tiempos", Georgia, Cambria, serif;
+  --sans: "Anthropic Sans", "Inter", system-ui, -apple-system, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --mono: "Anthropic Mono", "JetBrains Mono", "Fira Code", "SFMono-Regular", Consolas, monospace;
 }
 
 /* Dark theme — warm-toned, per the Claude dark section palette. */
@@ -113,7 +114,7 @@ a { color: var(--terracotta); text-decoration: none; }
 
 /* buttons */
 button { font-family: var(--sans); font-size: 15px; cursor: pointer; border: none; }
-.btn { padding: 8px 16px; border-radius: 12px; box-shadow: 0 0 0 1px var(--ring-warm); background: var(--sand); color: var(--charcoal); }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 16px; border-radius: 12px; box-shadow: 0 0 0 1px var(--ring-warm); background: var(--sand); color: var(--charcoal); }
 .btn:hover { box-shadow: 0 0 0 1px var(--stone); }
 .btn-primary { background: var(--terracotta); color: var(--ivory); box-shadow: 0 0 0 1px var(--terracotta); }
 .btn-primary:hover { background: var(--coral); }
@@ -195,8 +196,7 @@ textarea { font-family: var(--mono); min-height: 120px; }
 .card-action:hover { background: var(--sand); color: var(--near-black); }
 .card-action:disabled { opacity: 0.5; }
 .soon-chip { border: 1px solid var(--border-warm); border-radius: 12px; padding: 6px 12px; font-size: 12px; color: var(--stone); }
-.btn-sm svg { margin-right: 2px; vertical-align: -2px; }
-.btn.full { width: 100%; justify-content: center; }
+.btn.full { width: 100%; }
 .sync-toggle { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border-cream); }
 .sync-encform, .sync-connform { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border-cream); }
 .sync-encform { display: flex; gap: 8px; }

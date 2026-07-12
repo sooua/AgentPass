@@ -61,7 +61,7 @@ function useList(fn: () => Promise<any>, deps: unknown[] = []): { data: any; err
 
 export default function App() {
   const [page, setPage] = useState<Page>("targets");
-  const { t, theme, setTheme } = usePrefs();
+  const { t } = usePrefs();
   return (
     <div className="root-col">
       <TitleBar />
@@ -80,14 +80,6 @@ export default function App() {
             </div>
           ))}
           <div className="side-controls">
-            <button
-              className="icon-btn"
-              aria-label={t("settings.theme")}
-              title={t("settings.theme")}
-              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-            >
-              {theme === "dark" ? <MoonIcon /> : <SunIcon />}
-            </button>
             <button
               className={`icon-btn ${page === "settings" ? "on" : ""}`}
               aria-label={t("nav.settings")}
