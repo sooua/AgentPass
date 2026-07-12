@@ -10,16 +10,7 @@
     "beforeBuildCommand": "pnpm --filter @agentpass/desktop build"
   },
   "app": {
-    "windows": [
-      {
-        "title": "agentpass",
-        "width": 1200,
-        "height": 800,
-        "minWidth": 900,
-        "minHeight": 600,
-        "decorations": false
-      }
-    ],
+    "windows": [],
     "security": {
       "csp": "default-src 'self'; connect-src 'self' http://127.0.0.1:* http://localhost:*; img-src 'self' data:; style-src 'self' 'unsafe-inline'"
     }
