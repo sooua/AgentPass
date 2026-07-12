@@ -13,3 +13,6 @@ apps/desktop/src-tauri/gen/
 *.sqlite
 *.sqlite-*
 data/
+
+# stray Pencil docs
+*.pen
