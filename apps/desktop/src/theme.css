@@ -80,6 +80,14 @@ a { color: var(--terracotta); text-decoration: none; }
 }
 .brand { -webkit-user-select: none; user-select: none; }
 .icon-btn.danger-hover:hover { color: var(--crimson); }
+
+/* floating window controls, top-right (no titlebar) */
+.win-controls { position: fixed; top: 8px; right: 10px; z-index: 100; display: flex; gap: 2px; }
+.win-controls .icon-btn { width: 32px; height: 32px; background: transparent; box-shadow: none; color: var(--stone); border-radius: 8px; }
+.win-controls .icon-btn:hover { background: var(--sand); color: var(--near-black); }
+.win-controls .icon-btn.on { background: transparent; color: var(--terracotta); }
+.win-controls .icon-btn.danger-hover:hover { background: var(--crimson); color: #fff; }
+.main { padding-top: 52px; }
 .main { overflow-y: auto; }
 .icon-btn {
   width: 38px; height: 38px; display: inline-flex; align-items: center; justify-content: center;

@@ -64,6 +64,18 @@ export default function App() {
   const { t } = usePrefs();
   return (
     <div className="app">
+      {/* Window controls float in the top-right corner (no titlebar). */}
+      <div className="win-controls">
+        <button
+          className={`icon-btn ${page === "settings" ? "on" : ""}`}
+          aria-label={t("nav.settings")}
+          title={t("nav.settings")}
+          onClick={() => setPage("settings")}
+        >
+          <GearIcon />
+        </button>
+        <WindowButtons />
+      </div>
       <aside className="sidebar">
         {/* No titlebar — drag the window by the brand area. */}
         <div className="brand" data-tauri-drag-region>
@@ -78,17 +90,6 @@ export default function App() {
             {t(p.key)}
           </div>
         ))}
-        <div className="side-controls">
-          <button
-            className={`icon-btn ${page === "settings" ? "on" : ""}`}
-            aria-label={t("nav.settings")}
-            title={t("nav.settings")}
-            onClick={() => setPage("settings")}
-          >
-            <GearIcon />
-          </button>
-          <WindowButtons />
-        </div>
       </aside>
       <main className="main">
         {page === "targets" && <Targets />}
