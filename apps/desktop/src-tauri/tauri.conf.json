@@ -5,7 +5,7 @@
   "identifier": "dev.agentpass.desktop",
   "build": {
     "frontendDist": "../dist",
-    "devUrl": "http://localhost:5273",
+    "devUrl": "http://127.0.0.1:15273",
     "beforeDevCommand": "pnpm --filter @agentpass/desktop dev",
     "beforeBuildCommand": "pnpm --filter @agentpass/desktop build"
   },
@@ -20,7 +20,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; connect-src 'self' http://127.0.0.1:4747 http://localhost:4747; style-src 'self' 'unsafe-inline'"
+      "csp": "default-src 'self'; connect-src 'self' http://127.0.0.1:* http://localhost:*; img-src 'self' data:; style-src 'self' 'unsafe-inline'"
     }
   },
   "bundle": {

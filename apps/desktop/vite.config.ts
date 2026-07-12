@@ -5,6 +5,12 @@ import react from "@vitejs/plugin-react";
 export default defineConfig({
   plugins: [react()],
   clearScreen: false,
-  server: { port: 5273, strictPort: true },
+  server: {
+    host: "127.0.0.1",
+    port: 15273,
+    strictPort: true,
+    // Don't watch the Rust build dir — Cargo locks files there (EBUSY on Windows).
+    watch: { ignored: ["**/src-tauri/**"] },
+  },
   build: { outDir: "dist", target: "es2022" },
 });
