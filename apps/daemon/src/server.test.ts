@@ -8,6 +8,7 @@ import { AgentPassCore } from "@agentpass/core";
 import { LocalEncryptedStoreProvider } from "@agentpass/credential-providers";
 import { TempKeyFileCheckoutProvider } from "@agentpass/checkout-providers";
 import { SqliteStore } from "@agentpass/storage-sqlite";
+import { SyncEngine } from "@agentpass/sync";
 import { buildServer } from "./server.js";
 import type { DaemonConfig } from "./config.js";
 
@@ -28,9 +29,10 @@ beforeEach(async () => {
   const cfg = {
     host: "127.0.0.1", port: 0, home: dir, dbPath: ":memory:",
     keyPath: join(dir, "k"), checkoutDir: join(dir, "checkouts"),
-    token: TOKEN, uiDir: null,
+    syncConfigPath: join(dir, "sync.json"), token: TOKEN, uiDir: null,
   } satisfies DaemonConfig;
-  app = await buildServer(core, cfg);
+  const engine = new SyncEngine(core, join(dir, "sync.json"));
+  app = await buildServer(core, engine, cfg);
 });
 
 afterEach(async () => {

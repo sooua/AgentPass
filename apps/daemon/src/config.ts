@@ -10,6 +10,7 @@ export interface DaemonConfig {
   dbPath: string;
   keyPath: string;
   checkoutDir: string;
+  syncConfigPath: string;
   token: string;
   uiDir: string | null;
 }
@@ -38,6 +39,7 @@ export function loadConfig(): DaemonConfig {
     dbPath: process.env.AGENTPASS_DB ?? join(home, "agentpass.sqlite"),
     keyPath: join(home, "master.key"),
     checkoutDir: join(home, "checkouts"),
+    syncConfigPath: join(home, "sync.json"),
     token,
     uiDir: uiDir && existsSync(uiDir) ? uiDir : null,
   };

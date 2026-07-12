@@ -8,6 +8,7 @@
     { "path": "packages/checkout-providers" },
     { "path": "packages/rotation-providers" },
     { "path": "packages/gateway-adapters" },
+    { "path": "packages/sync" },
     { "path": "apps/daemon" },
     { "path": "apps/mcp-server" }
   ]

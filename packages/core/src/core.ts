@@ -16,6 +16,8 @@ import {
   type RotationJob,
   type RotationPolicy,
   type SecretReveal,
+  type SyncBundle,
+  type SyncCredential,
   type Target,
 } from "@agentpass/shared";
 import type {
@@ -156,6 +158,7 @@ export class AgentPassCore {
     for (const s of this.repo.listCheckouts())
       if (s.target_id === id && s.status === "active") await this.revokeCheckout(s.id);
     this.repo.deleteTarget(id);
+    this.repo.addTombstone({ id, entity: "target", deleted_at: nowIso() });
   }
 
   // -------- credentials --------
@@ -255,6 +258,7 @@ export class AgentPassCore {
         });
     await this.backendFor(c.provider).deleteSecret(c.secret_ref);
     this.repo.deleteCredential(id);
+    this.repo.addTombstone({ id, entity: "credential", deleted_at: nowIso() });
   }
 
   // -------- reveal (HIGH RISK) --------
@@ -641,9 +645,71 @@ export class AgentPassCore {
     const reveals = this.repo.pruneReveals(before);
     const checkouts = this.repo.pruneCheckouts(before);
     const reveal_requests = this.repo.pruneRevealRequests(before);
+    // Tombstones kept much longer than other records so deletions still
+    // propagate to devices that sync infrequently.
+    this.repo.pruneTombstones(addDays(nowIso(), -Math.max(retentionDays, 90)));
     if (reveals || checkouts || reveal_requests)
       this.log.info("prune_old", { reveals, checkouts, reveal_requests, retentionDays });
     return { reveals, checkouts, reveal_requests };
+  }
+
+  // -------- sync support (export/apply the full state; secrets included) --------
+  /** Full portable snapshot. Secrets are decrypted for local_encrypted creds so
+   * another device can re-store them. Caller MUST encrypt before it leaves the host. */
+  async exportBundle(): Promise<SyncBundle> {
+    const credentials: SyncCredential[] = [];
+    for (const c of this.repo.listCredentials()) {
+      let secret: string | null = null;
+      if (c.provider === "local_encrypted") {
+        secret = await this.backendFor(c.provider).revealSecret(c.secret_ref, {
+          credential_id: c.id,
+          requested_by: "sync",
+          purpose: "sync-export",
+        });
+      }
+      credentials.push({ ...c, secret });
+    }
+    return {
+      targets: this.repo.listTargets(),
+      credentials,
+      rotation_policies: this.repo.listRotationPolicies(),
+      tombstones: this.repo.listTombstones(),
+    };
+  }
+
+  /** Apply a merged bundle to local state: honor tombstones, then upsert. Secrets
+   * for local_encrypted creds are re-stored under a fresh local secret_ref. */
+  async applyBundle(b: SyncBundle): Promise<void> {
+    for (const tomb of b.tombstones) {
+      if (tomb.entity === "target" && this.repo.getTarget(tomb.id)) this.repo.deleteTarget(tomb.id);
+      if (tomb.entity === "credential") {
+        const c = this.repo.getCredential(tomb.id);
+        if (c) {
+          await this.backendFor(c.provider).deleteSecret(c.secret_ref).catch(() => {});
+          this.repo.deleteCredential(tomb.id);
+        }
+      }
+      this.repo.addTombstone(tomb);
+    }
+    for (const t of b.targets)
+      this.repo.getTarget(t.id) ? this.repo.updateTarget(t.id, t) : this.repo.createTarget(t);
+    for (const p of b.rotation_policies)
+      this.repo.getRotationPolicy(p.id) ? this.repo.updateRotationPolicy(p.id, p) : this.repo.createRotationPolicy(p);
+    for (const sc of b.credentials) {
+      const { secret, ...meta } = sc;
+      const existing = this.repo.getCredential(meta.id);
+      if (meta.provider === "local_encrypted" && secret != null) {
+        if (existing) {
+          await this.backendFor(meta.provider).updateSecret(existing.secret_ref, secret);
+          this.repo.updateCredential(meta.id, { ...meta, secret_ref: existing.secret_ref });
+        } else {
+          const { secret_ref } = await this.backendFor(meta.provider).putSecret({ type: meta.type, secret_value: secret });
+          this.repo.createCredential({ ...meta, secret_ref });
+        }
+      } else {
+        existing ? this.repo.updateCredential(meta.id, meta) : this.repo.createCredential(meta);
+      }
+    }
   }
 
   /** Operational snapshot for /health and dashboards. */

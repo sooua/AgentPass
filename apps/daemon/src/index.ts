@@ -4,21 +4,22 @@ import { buildCore } from "./wiring.js";
 
 async function main(): Promise<void> {
   const cfg = loadConfig();
-  const { core, store } = buildCore(cfg);
+  const { core, store, engine } = buildCore(cfg);
 
   // Maintenance pass: clean expired access, enqueue due rotations, run auto
-  // rotations, prune old terminal records.
+  // rotations, prune old terminal records, auto-sync if enabled.
   const maintain = async () => {
     await core.sweepExpired();
     core.scanDueRotations();
     await core.runAutoRotations();
     core.pruneOld(Number(process.env.AGENTPASS_RETENTION_DAYS ?? 30));
+    await engine.autoTick();
   };
   await maintain();
   const timer = setInterval(() => void maintain(), 30_000);
   timer.unref();
 
-  const app = await buildServer(core, cfg);
+  const app = await buildServer(core, engine, cfg);
   await app.listen({ host: cfg.host, port: cfg.port });
 
   // Graceful shutdown: stop accepting, close the DB cleanly.

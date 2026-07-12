@@ -15,6 +15,7 @@ export default defineConfig({
       "@agentpass/checkout-providers": pkg("checkout-providers"),
       "@agentpass/rotation-providers": pkg("rotation-providers"),
       "@agentpass/gateway-adapters": pkg("gateway-adapters"),
+      "@agentpass/sync": pkg("sync"),
     },
   },
   // node:sqlite is a newer builtin Vite doesn't externalize by default.

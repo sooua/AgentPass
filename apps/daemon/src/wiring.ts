@@ -6,9 +6,10 @@ import {
 import { LocalEncryptedStoreProvider, loadOrCreateMasterKey } from "@agentpass/credential-providers";
 import { PasswordRotationProvider, SshKeyRotationProvider } from "@agentpass/rotation-providers";
 import { SqliteStore } from "@agentpass/storage-sqlite";
+import { SyncEngine } from "@agentpass/sync";
 import type { DaemonConfig } from "./config.js";
 
-export function buildCore(cfg: DaemonConfig): { core: AgentPassCore; store: SqliteStore } {
+export function buildCore(cfg: DaemonConfig): { core: AgentPassCore; store: SqliteStore; engine: SyncEngine } {
   const logger = createLogger((process.env.AGENTPASS_LOG_LEVEL as "info") ?? "info");
   const store = new SqliteStore(cfg.dbPath);
   const key = loadOrCreateMasterKey(cfg.keyPath);
@@ -24,5 +25,6 @@ export function buildCore(cfg: DaemonConfig): { core: AgentPassCore; store: Sqli
     rotationProviders: [new PasswordRotationProvider(), new SshKeyRotationProvider()],
     logger,
   });
-  return { core, store };
+  const engine = new SyncEngine(core, cfg.syncConfigPath, logger);
+  return { core, store, engine };
 }

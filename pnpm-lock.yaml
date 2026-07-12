@@ -47,6 +47,9 @@ importers:
       '@agentpass/storage-sqlite':
         specifier: workspace:*
         version: link:../../packages/storage-sqlite
+      '@agentpass/sync':
+        specifier: workspace:*
+        version: link:../../packages/sync
       '@fastify/cors':
         specifier: ^10.0.1
         version: 10.1.0
@@ -161,6 +164,12 @@ importers:
       '@agentpass/core':
         specifier: workspace:*
         version: link:../core
+      '@agentpass/shared':
+        specifier: workspace:*
+        version: link:../shared
+
+  packages/sync:
+    dependencies:
       '@agentpass/shared':
         specifier: workspace:*
         version: link:../shared

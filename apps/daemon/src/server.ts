@@ -3,8 +3,9 @@ import { join } from "node:path";
 import Fastify, { type FastifyInstance } from "fastify";
 import cors from "@fastify/cors";
 import fastifyStatic from "@fastify/static";
-import { ZodError, type ZodTypeAny } from "zod";
+import { z, ZodError, type ZodTypeAny } from "zod";
 import { AppError, type AgentPassCore } from "@agentpass/core";
+import type { SyncEngine } from "@agentpass/sync";
 import {
   MAX_SECRET_BYTES,
   auditQuerySchema,
@@ -35,7 +36,7 @@ const parse = <T>(schema: ZodTypeAny, data: unknown): T => {
   }
 };
 
-export async function buildServer(core: AgentPassCore, cfg: DaemonConfig): Promise<FastifyInstance> {
+export async function buildServer(core: AgentPassCore, engine: SyncEngine, cfg: DaemonConfig): Promise<FastifyInstance> {
   // Body limit sits above MAX_SECRET_BYTES so the schema (not the transport) is
   // what rejects an oversized secret — giving a clean 400 validation_error.
   const app = Fastify({ logger: false, bodyLimit: MAX_SECRET_BYTES + 512 * 1024 });
@@ -164,6 +165,32 @@ export async function buildServer(core: AgentPassCore, cfg: DaemonConfig): Promi
   app.get("/audit-logs", async (req) => ({
     logs: core.listAudit(auditQuerySchema.parse(req.query ?? {})),
   }));
+
+  // ---- sync (E2E-encrypted cross-device sync) ----
+  const webdavCfg = z.object({ url: z.string().url(), username: z.string(), password: z.string() });
+  const s3Cfg = z.object({
+    endpoint: z.string().url(), region: z.string(), bucket: z.string(),
+    accessKeyId: z.string(), secretAccessKey: z.string(), prefix: z.string().optional(),
+  });
+  app.get("/sync/state", async () => engine.getState());
+  app.post("/sync/passphrase", async (req) =>
+    engine.setPassphrase(parse<{ passphrase: string }>(z.object({ passphrase: z.string() }), req.body).passphrase),
+  );
+  app.post("/sync/auto", async (req) =>
+    engine.setAutoSync(parse<{ enabled: boolean }>(z.object({ enabled: z.boolean() }), req.body).enabled),
+  );
+  app.post("/sync/connect/local", async (req) =>
+    engine.connectLocal(parse<{ dir: string }>(z.object({ dir: z.string().min(1) }), req.body)),
+  );
+  app.post("/sync/connect/gist", async (req) =>
+    engine.connectGist(parse<{ token: string }>(z.object({ token: z.string().min(1) }), req.body).token),
+  );
+  app.post("/sync/connect/webdav", async (req) => engine.connectWebDav(parse(webdavCfg, req.body)));
+  app.post("/sync/connect/s3", async (req) => engine.connectS3(parse(s3Cfg, req.body)));
+  app.post("/sync/disconnect", async () => engine.disconnect());
+  app.post("/sync/run", async () => engine.run());
+  app.get("/sync/versions", async () => ({ versions: await engine.listVersions() }));
+  app.post<{ Params: { id: string } }>("/sync/restore/:id", async (req) => engine.restoreVersion(req.params.id));
 
   // ---- optional static Web UI (built Tauri/Vite frontend) ----
   if (cfg.uiDir) {

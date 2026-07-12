@@ -12,6 +12,7 @@
     { "path": "../../packages/credential-providers" },
     { "path": "../../packages/checkout-providers" },
     { "path": "../../packages/rotation-providers" },
-    { "path": "../../packages/gateway-adapters" }
+    { "path": "../../packages/gateway-adapters" },
+    { "path": "../../packages/sync" }
   ]
 }

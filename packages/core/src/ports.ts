@@ -13,6 +13,7 @@ import type {
   RotationPolicy,
   SecretReveal,
   Target,
+  Tombstone,
 } from "@agentpass/shared";
 
 export interface RevealContext {
@@ -142,4 +143,9 @@ export interface Repository {
   // audit
   appendAudit(log: AuditLog): void;
   listAudit(limit?: number): AuditLog[];
+
+  // tombstones (deletion propagation for sync)
+  addTombstone(t: Tombstone): void;
+  listTombstones(): Tombstone[];
+  pruneTombstones(beforeIso: string): number;
 }

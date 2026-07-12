@@ -11,6 +11,7 @@ import type {
   RotationPolicy,
   SecretReveal,
   Target,
+  Tombstone,
 } from "@agentpass/shared";
 import type { Repository, SecretBlobStore } from "@agentpass/core";
 
@@ -58,6 +59,8 @@ export class SqliteStore implements Repository, SecretBlobStore {
     this.db.exec(
       `CREATE TABLE IF NOT EXISTS secret_blobs (ref TEXT PRIMARY KEY, ciphertext TEXT NOT NULL)`,
     );
+    // Tombstones: deleted entity ids so deletions propagate through sync merges.
+    this.db.exec(`CREATE TABLE IF NOT EXISTS tombstones (id TEXT PRIMARY KEY, data TEXT NOT NULL)`);
     // Schema version marker for future migrations.
     this.db.exec(`CREATE TABLE IF NOT EXISTS _meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)`);
     this.db
@@ -259,6 +262,22 @@ export class SqliteStore implements Repository, SecretBlobStore {
       .prepare(`SELECT data FROM audit_logs ORDER BY seq DESC LIMIT ?`)
       .all(limit) as { data: string }[];
     return rows.map((r) => JSON.parse(r.data) as AuditLog);
+  }
+
+  // ---- tombstones ----
+  addTombstone(t: Tombstone): void {
+    this.db
+      .prepare(`INSERT INTO tombstones (id, data) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET data = excluded.data`)
+      .run(t.id, JSON.stringify(t));
+  }
+  listTombstones(): Tombstone[] {
+    return this.allRows<Tombstone>("tombstones");
+  }
+  pruneTombstones(beforeIso: string): number {
+    const res = this.db
+      .prepare(`DELETE FROM tombstones WHERE json_extract(data,'$.deleted_at') < ?`)
+      .run(beforeIso);
+    return res.changes as number;
   }
 
   // ---- SecretBlobStore ----

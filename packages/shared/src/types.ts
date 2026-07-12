@@ -137,6 +137,13 @@ export interface RotationJob {
   created_at: string;
 }
 
+/** Marks a deleted entity so the deletion propagates through sync merges. */
+export interface Tombstone {
+  id: string;
+  entity: "target" | "credential" | "rotation_policy";
+  deleted_at: string;
+}
+
 export type RevealRequestStatus = "pending" | "approved" | "denied" | "consumed";
 
 /** Approval gate for reveals when a credential's policy requires it. */
@@ -166,6 +173,21 @@ export interface AuditLog {
   timestamp: string;
   /** Already-redacted structured context. Never contains secret material. */
   metadata_redacted: Record<string, unknown>;
+}
+
+// ---- Sync (bundle travels ONLY inside an E2E-encrypted envelope) ----
+
+/** A credential plus its plaintext secret, for cross-device sync. secret is only
+ * populated for portable (local_encrypted) backends; secret_ref is device-local. */
+export interface SyncCredential extends Credential {
+  secret: string | null;
+}
+
+export interface SyncBundle {
+  targets: Target[];
+  credentials: SyncCredential[];
+  rotation_policies: RotationPolicy[];
+  tombstones: Tombstone[];
 }
 
 // ---- Operation results (carry plaintext — treat as sensitive, never persist/log) ----
