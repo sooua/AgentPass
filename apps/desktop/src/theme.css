@@ -23,6 +23,24 @@
   --mono: "Anthropic Mono", ui-monospace, "SF Mono", monospace;
 }
 
+/* Dark theme — warm-toned, per the Claude dark section palette. */
+:root[data-theme="dark"] {
+  --parchment: #141413;
+  --ivory: #1c1c1b;
+  --white: #26262450;
+  --sand: #30302e;
+  --near-black: #ece9e0;
+  --charcoal: #ece9e0;
+  --olive: #b0aea5;
+  --stone: #8f8e86;
+  --border-cream: #2a2a28;
+  --border-warm: #3a3a37;
+  --ring-warm: #4a4844;
+}
+:root[data-theme="dark"] input,
+:root[data-theme="dark"] select,
+:root[data-theme="dark"] textarea { background: #262624; }
+
 * { box-sizing: border-box; }
 body {
   margin: 0;
@@ -47,6 +65,11 @@ a { color: var(--terracotta); text-decoration: none; }
 }
 .brand { font-family: var(--serif); font-size: 25px; font-weight: 500; margin-bottom: 24px; }
 .brand-row { display: flex; align-items: center; gap: 10px; }
+.side-controls { margin-top: auto; padding-top: 16px; border-top: 1px solid var(--border-cream); display: flex; flex-direction: column; gap: 8px; }
+.seg { display: flex; gap: 4px; background: var(--sand); border-radius: 10px; padding: 3px; }
+.seg button { flex: 1; padding: 5px 8px; border-radius: 7px; background: transparent; color: var(--olive); font-size: 12px; }
+.seg button.on { background: var(--ivory); color: var(--near-black); box-shadow: 0 0 0 1px var(--ring-warm); }
+.sidebar { display: flex; flex-direction: column; }
 .brand small { display: block; font-family: var(--sans); font-size: 12px; color: var(--stone); letter-spacing: 0.12px; }
 .navlink {
   display: block; padding: 8px 12px; border-radius: 8px; color: var(--olive);
