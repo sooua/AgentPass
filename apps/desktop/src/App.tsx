@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { api, getToken, getUrl, setConn } from "./api.js";
 import { usePrefs, type Lang, type Theme } from "./i18n.js";
+import { TitleBar } from "./TitleBar.js";
 
 type Page = "targets" | "credentials" | "reveals" | "checkouts" | "rotation" | "requests" | "audit" | "settings";
 
+// Settings is reached from the bottom-left icon, not the main nav.
 const PAGES: { id: Page; key: string }[] = [
   { id: "targets", key: "nav.targets" },
   { id: "credentials", key: "nav.credentials" },
@@ -12,7 +14,6 @@ const PAGES: { id: Page; key: string }[] = [
   { id: "rotation", key: "nav.rotation" },
   { id: "requests", key: "nav.requests" },
   { id: "audit", key: "nav.audit" },
-  { id: "settings", key: "nav.settings" },
 ];
 
 const Badge = ({ v }: { v: string }) => <span className={`badge badge-${v}`}>{v}</span>;
@@ -36,40 +37,74 @@ function useList(fn: () => Promise<any>, deps: unknown[] = []): { data: any; err
 
 export default function App() {
   const [page, setPage] = useState<Page>("targets");
-  const { t, lang, setLang, theme, setTheme } = usePrefs();
+  const { t, theme, setTheme } = usePrefs();
   return (
-    <div className="app">
-      <aside className="sidebar">
-        <div className="brand">
-          <span className="brand-row">
-            <img src="/logo.svg" width={28} height={28} alt="" />
-            agentpass
-          </span>
-          <small>{t("brand.sub")}</small>
-        </div>
-        {PAGES.map((p) => (
-          <div key={p.id} className={`navlink ${page === p.id ? "active" : ""}`} onClick={() => setPage(p.id)}>
-            {t(p.key)}
+    <div className="root-col">
+      <TitleBar />
+      <div className="app">
+        <aside className="sidebar">
+          <div className="brand">
+            <span className="brand-row">
+              <img src="/logo.svg" width={28} height={28} alt="" />
+              agentpass
+            </span>
+            <small>{t("brand.sub")}</small>
           </div>
-        ))}
-        <div className="side-controls">
-          <Seg<Lang> value={lang} onChange={setLang} options={[["en", "EN"], ["zh", "中文"]]} />
-          <Seg<Theme> value={theme} onChange={setTheme} options={[["light", t("theme.light")], ["dark", t("theme.dark")]]} />
-        </div>
-      </aside>
-      <main className="main">
-        {page === "targets" && <Targets />}
-        {page === "credentials" && <Credentials />}
-        {page === "reveals" && <Reveals />}
-        {page === "checkouts" && <Checkouts />}
-        {page === "rotation" && <Rotation />}
-        {page === "requests" && <Requests />}
-        {page === "audit" && <Audit />}
-        {page === "settings" && <Settings />}
-      </main>
+          {PAGES.map((p) => (
+            <div key={p.id} className={`navlink ${page === p.id ? "active" : ""}`} onClick={() => setPage(p.id)}>
+              {t(p.key)}
+            </div>
+          ))}
+          <div className="side-controls">
+            <button
+              className="icon-btn"
+              aria-label={t("settings.theme")}
+              title={t("settings.theme")}
+              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+            >
+              {theme === "dark" ? <MoonIcon /> : <SunIcon />}
+            </button>
+            <button
+              className={`icon-btn ${page === "settings" ? "on" : ""}`}
+              aria-label={t("nav.settings")}
+              title={t("nav.settings")}
+              onClick={() => setPage("settings")}
+            >
+              <GearIcon />
+            </button>
+          </div>
+        </aside>
+        <main className="main">
+          {page === "targets" && <Targets />}
+          {page === "credentials" && <Credentials />}
+          {page === "reveals" && <Reveals />}
+          {page === "checkouts" && <Checkouts />}
+          {page === "rotation" && <Rotation />}
+          {page === "requests" && <Requests />}
+          {page === "audit" && <Audit />}
+          {page === "settings" && <Settings />}
+        </main>
+      </div>
     </div>
   );
 }
+
+const SunIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+    <circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4" />
+  </svg>
+);
+const MoonIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" />
+  </svg>
+);
+const GearIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="3" />
+    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+  </svg>
+);
 
 function Seg<T extends string>({ value, onChange, options }: { value: T; onChange: (v: T) => void; options: [T, string][] }) {
   return (
