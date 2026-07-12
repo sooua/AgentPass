@@ -64,17 +64,29 @@ a { color: var(--terracotta); text-decoration: none; }
 
 /* Top bar: brand left, window controls right — one row, draggable. */
 .topbar {
-  height: 48px; flex: 0 0 48px; display: flex; align-items: stretch;
+  height: 56px; flex: 0 0 56px; display: flex; align-items: center;
   background: var(--ivory); border-bottom: 1px solid var(--border-cream); user-select: none;
 }
-.topbar-brand { display: flex; align-items: center; gap: 8px; padding-left: 16px; font-family: var(--serif); font-size: 16px; font-weight: 500; color: var(--near-black); }
-.topbar-brand small { font-family: var(--sans); font-size: 11px; font-weight: 400; color: var(--stone); margin-left: 2px; }
-.topbar-drag { flex: 1; }
-.topbar-controls { display: flex; }
-.topbar-controls .icon-btn { width: 46px; height: 100%; border-radius: 0; background: transparent; box-shadow: none; color: var(--olive); }
-.topbar-controls .icon-btn:hover { background: var(--sand); color: var(--near-black); }
-.topbar-controls .icon-btn.on { background: transparent; color: var(--terracotta); }
-.topbar-controls .icon-btn.danger-hover:hover { background: var(--crimson); color: #fff; }
+.topbar-brand { display: flex; align-items: center; gap: 9px; padding-left: 20px; font-family: var(--serif); font-size: 19px; font-weight: 500; color: var(--near-black); }
+.topbar-drag { flex: 1; align-self: stretch; }
+/* sweep-style action buttons: 34px bordered rounded, ivory, soft-shadow hover */
+.topbar-actions { display: flex; align-items: center; gap: 8px; padding-right: 8px; }
+.iconbtn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; border-radius: 10px; cursor: pointer; color: var(--charcoal);
+  background: var(--ivory); border: 1px solid var(--border-warm); box-shadow: none;
+  font-family: var(--sans); font-size: 13px; transition: box-shadow 0.15s;
+}
+.iconbtn:hover { box-shadow: rgba(0,0,0,0.05) 0 2px 10px; }
+.iconbtn svg { width: 18px; height: 18px; }
+.iconbtn.on { color: var(--terracotta); border-color: var(--coral); }
+.iconbtn.lang { font-weight: 500; }
+/* window controls: flush, close hovers red */
+.win-btns { display: flex; align-self: stretch; }
+.win-btn { width: 46px; height: 100%; display: flex; align-items: center; justify-content: center; background: transparent; color: var(--olive); }
+.win-btn svg { width: 16px; height: 16px; }
+.win-btn:hover { background: var(--sand); color: var(--near-black); }
+.win-btn.close:hover { background: #e5484d; color: #fff; }
 
 .app { display: flex; flex: 1; min-height: 0; overflow: hidden; }
 
@@ -108,8 +120,12 @@ a { color: var(--terracotta); text-decoration: none; }
 
 /* main */
 /* Fluid, centered content: balanced margins on wide windows, fills on narrow. */
-.main { flex: 1; padding: 32px 40px 40px; display: flex; flex-direction: column; align-items: center; }
-.main > * { width: 100%; max-width: 1120px; }
+/* Fluid fill — content stretches to the full available width. */
+.main { flex: 1; padding: 32px 40px 40px; display: flex; flex-direction: column; }
+.main > * { width: 100%; }
+/* Hide scrollbars (scrolling still works). */
+.main, .sidebar, .sync-body, .modal { scrollbar-width: none; -ms-overflow-style: none; }
+.main::-webkit-scrollbar, .sidebar::-webkit-scrollbar, .sync-body::-webkit-scrollbar, .modal::-webkit-scrollbar { width: 0; height: 0; display: none; }
 .page-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; }
 .subtitle { color: var(--olive); font-size: 15px; margin-top: -6px; }
 

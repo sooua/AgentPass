@@ -1,3 +1,5 @@
+import { writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { loadConfig } from "./config.js";
 import { buildServer } from "./server.js";
 import { buildCore } from "./wiring.js";
@@ -5,6 +7,14 @@ import { buildCore } from "./wiring.js";
 async function main(): Promise<void> {
   const cfg = loadConfig();
   const { core, store, engine } = buildCore(cfg);
+
+  // Publish the live connection so the desktop app can auto-connect (no manual
+  // URL/token entry). Written 0600 next to the token.
+  writeFileSync(
+    join(cfg.home, "conn.json"),
+    JSON.stringify({ url: `http://${cfg.host}:${cfg.port}`, token: cfg.token }),
+    { mode: 0o600 },
+  );
 
   // Maintenance pass: clean expired access, enqueue due rotations, run auto
   // rotations, prune old terminal records, auto-sync if enabled.

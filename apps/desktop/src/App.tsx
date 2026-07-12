@@ -1,8 +1,27 @@
-import { useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import { api, getToken, getUrl, setConn } from "./api.js";
 import { usePrefs, type Lang, type Theme } from "./i18n.js";
 import { SyncModal } from "./SyncModal.js";
 import { checkForUpdate, installAndRestart, type UpdateInfo } from "./updater.js";
+
+// Global refresh signal: the topbar refresh button bumps this; every useList
+// includes it, so the active page refetches.
+const RefreshCtx = createContext(0);
+
+const inTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+// Auto-connect the desktop app to the local daemon (reads the url+token the
+// daemon publishes). Falls back to whatever is in Settings on the web build.
+async function autoConnect(): Promise<void> {
+  if (!inTauri) return;
+  try {
+    const { invoke } = await import("@tauri-apps/api/core");
+    const raw = (await invoke("daemon_conn")) as string;
+    const { url, token } = JSON.parse(raw);
+    if (url && token) setConn(url, token);
+  } catch {
+    /* daemon not up yet — Settings still works */
+  }
+}
 
 type Page = "targets" | "credentials" | "reveals" | "checkouts" | "rotation" | "requests" | "audit" | "settings";
 
@@ -49,40 +68,39 @@ function useList(fn: () => Promise<any>, deps: unknown[] = []): { data: any; err
   const [data, setData] = useState<any>(null);
   const [err, setErr] = useState("");
   const [tick, setTick] = useState(0);
+  const nonce = useContext(RefreshCtx);
   useEffect(() => {
     let live = true;
     setErr("");
     fn().then((d) => live && setData(d)).catch((e) => live && setErr(e.message));
     return () => { live = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [...deps, tick]);
+  }, [...deps, tick, nonce]);
   return { data, err, reload: () => setTick((t) => t + 1) };
 }
 
 export default function App() {
   const [page, setPage] = useState<Page>("targets");
-  const { t } = usePrefs();
+  const [nonce, setNonce] = useState(0);
+  const { t, lang, setLang, theme, setTheme } = usePrefs();
+  useEffect(() => { void autoConnect().then(() => setNonce((n) => n + 1)); }, []);
   return (
+    <RefreshCtx.Provider value={nonce}>
     <div className="root-col">
-      {/* Top bar: brand on the left, window controls on the right — one row. */}
+      {/* Top bar: brand left, actions right — one draggable row (sweep-style). */}
       <div className="topbar">
         <div className="topbar-brand" data-tauri-drag-region>
-          <img src="logo.svg" width={22} height={22} alt="" data-tauri-drag-region />
-          <span data-tauri-drag-region>agentpass</span>
-          <small data-tauri-drag-region>{t("brand.sub")}</small>
+          <img src="logo.svg" width={34} height={34} alt="" data-tauri-drag-region />
+          <span data-tauri-drag-region>AgentPass</span>
         </div>
         <div className="topbar-drag" data-tauri-drag-region />
-        <div className="topbar-controls">
-          <button
-            className={`icon-btn ${page === "settings" ? "on" : ""}`}
-            aria-label={t("nav.settings")}
-            title={t("nav.settings")}
-            onClick={() => setPage("settings")}
-          >
-            <GearIcon />
-          </button>
-          <WindowButtons />
+        <div className="topbar-actions">
+          <button className="iconbtn" title={t("common.refresh")} onClick={() => setNonce((n) => n + 1)}><RefreshIcon /></button>
+          <button className="iconbtn lang" title={t("settings.language")} onClick={() => setLang(lang === "zh" ? "en" : "zh")}>{lang === "zh" ? "中" : "EN"}</button>
+          <button className="iconbtn" title={t("settings.theme")} onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>{theme === "dark" ? <MoonIcon /> : <SunIcon />}</button>
+          <button className={`iconbtn ${page === "settings" ? "on" : ""}`} title={t("nav.settings")} onClick={() => setPage("settings")}><GearIcon /></button>
         </div>
+        <WindowButtons />
       </div>
       <div className="app">
         <aside className="sidebar">
@@ -104,12 +122,15 @@ export default function App() {
         </main>
       </div>
     </div>
+    </RefreshCtx.Provider>
   );
 }
 
-// Minimal window controls (Tauri only) — the app has no titlebar, so these live
-// in the sidebar footer; the window is dragged by the brand area above.
+// Window controls (Tauri only) live in the top bar; window drags by the brand.
 const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+const RefreshIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 4v6h-6M1 20v-6h6" /><path d="M20.5 9A9 9 0 0 0 5.6 5.6L1 10m22 4l-4.6 4.4A9 9 0 0 1 3.5 15" /></svg>
+);
 async function tauriWin() {
   const { getCurrentWindow } = await import("@tauri-apps/api/window");
   return getCurrentWindow();
@@ -117,14 +138,14 @@ async function tauriWin() {
 function WindowButtons() {
   if (!isTauri) return null;
   return (
-    <>
-      <button className="icon-btn" aria-label="minimize" title="minimize" onClick={() => void tauriWin().then((w) => w.minimize())}>
+    <div className="win-btns">
+      <button className="win-btn" aria-label="minimize" title="minimize" onClick={() => void tauriWin().then((w) => w.minimize())}>
         <svg width="16" height="16" viewBox="0 0 16 16"><rect x="3" y="7.4" width="10" height="1.2" fill="currentColor" /></svg>
       </button>
-      <button className="icon-btn danger-hover" aria-label="close" title="close" onClick={() => void tauriWin().then((w) => w.close())}>
+      <button className="win-btn close" aria-label="close" title="close" onClick={() => void tauriWin().then((w) => w.close())}>
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M3 3l10 10M13 3L3 13" /></svg>
       </button>
-    </>
+    </div>
   );
 }
 
@@ -155,17 +176,9 @@ function Seg<T extends string>({ value, onChange, options }: { value: T; onChang
   );
 }
 
-function Head({ title, sub, onRefresh }: { title: string; sub: string; onRefresh?: () => void }) {
-  const { t } = usePrefs();
-  return (
-    <div className="page-head">
-      <div>
-        <h1>{title}</h1>
-        <div className="subtitle">{sub}</div>
-      </div>
-      {onRefresh && <button className="btn btn-sm" onClick={onRefresh}>↻ {t("common.refresh")}</button>}
-    </div>
-  );
+// No per-page header — nav names the page, refresh lives in the top bar.
+function Head(_props: { title?: string; sub?: string; onRefresh?: () => void }) {
+  return null;
 }
 
 // ---------------- Targets ----------------
@@ -285,7 +298,6 @@ function QuickAdd({ onDone }: { onDone: () => void }) {
   return (
     <div className="card">
       <h3>{t("quickadd.title")}</h3>
-      <div className="subtitle" style={{ marginBottom: 8 }}>{t("quickadd.sub")}</div>
       <div className="row">
         <div><label>{t("common.name")}</label><input value={f.name} onChange={(e) => set("name", e.target.value)} /></div>
         <div><label>{t("targets.host")}</label><input value={f.host} onChange={(e) => set("host", e.target.value)} /></div>
@@ -691,7 +703,6 @@ function UpdatePanel() {
   return (
     <div className="card">
       <h3>{t("update.title")}</h3>
-      <div className="subtitle" style={{ marginBottom: 12 }}>{t("update.sub")}</div>
       <div className="toolbar">
         <button className="btn" onClick={check} disabled={busy}>{t("update.check")}</button>
         {info && <button className="btn-primary btn" onClick={install} disabled={busy}>{t("update.install")}</button>}
@@ -704,7 +715,7 @@ function UpdatePanel() {
 
 // ---------------- Settings ----------------
 function Settings() {
-  const { t, lang, setLang, theme, setTheme } = usePrefs();
+  const { t } = usePrefs();
   const [url, setUrl] = useState(getUrl());
   const [token, setToken] = useState(getToken());
   const [status, setStatus] = useState("");
@@ -717,8 +728,14 @@ function Settings() {
   };
   return (
     <>
-      <Head title={t("settings.title")} sub={t("settings.sub")} />
       <div className="card">
+        <h3>{t("sync.title")}</h3>
+        <button className="btn-primary btn" onClick={() => setSyncOpen(true)}>{t("sync.open")}…</button>
+      </div>
+      {syncOpen && <SyncModal onClose={() => setSyncOpen(false)} />}
+      <UpdatePanel />
+      <div className="card">
+        <h3>{t("settings.connTitle")}</h3>
         <label>{t("settings.url")}</label>
         <input value={url} onChange={(e) => setUrl(e.target.value)} />
         <label>{t("settings.token")}</label>
@@ -727,26 +744,6 @@ function Settings() {
           <button className="btn-primary btn" onClick={save}>{t("settings.save")}</button>
           <button className="btn" onClick={check}>{t("settings.test")}</button>
           <span className="muted">{status}</span>
-        </div>
-      </div>
-      <div className="card">
-        <h3>{t("sync.title")}</h3>
-        <div className="subtitle" style={{ marginBottom: 12 }}>{t("sync.sub")}</div>
-        <button className="btn-primary btn" onClick={() => setSyncOpen(true)}>{t("sync.open")}…</button>
-      </div>
-      {syncOpen && <SyncModal onClose={() => setSyncOpen(false)} />}
-      <UpdatePanel />
-      <div className="card">
-        <h3>{t("settings.appearance")}</h3>
-        <div className="row">
-          <div>
-            <label>{t("settings.language")}</label>
-            <Seg<Lang> value={lang} onChange={setLang} options={[["en", "English"], ["zh", "中文"]]} />
-          </div>
-          <div>
-            <label>{t("settings.theme")}</label>
-            <Seg<Theme> value={theme} onChange={setTheme} options={[["light", t("theme.light")], ["dark", t("theme.dark")]]} />
-          </div>
         </div>
       </div>
     </>
