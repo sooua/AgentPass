@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import { join } from "node:path";
 import Fastify, { type FastifyInstance } from "fastify";
 import cors from "@fastify/cors";
@@ -5,14 +6,18 @@ import fastifyStatic from "@fastify/static";
 import { ZodError, type ZodTypeAny } from "zod";
 import { AppError, type AgentPassCore } from "@agentpass/core";
 import {
+  auditQuerySchema,
   checkoutSchema,
   createCredentialSchema,
   createRotationJobSchema,
   createTargetSchema,
+  credentialQuerySchema,
+  decideRevealRequestSchema,
   markRotationFailedSchema,
   markRotationSuccessSchema,
   revealSchema,
   rotationPolicySchema,
+  targetQuerySchema,
   updateCredentialSchema,
   updateRotationPolicySchema,
   updateTargetSchema,
@@ -34,18 +39,25 @@ export async function buildServer(core: AgentPassCore, cfg: DaemonConfig): Promi
   await app.register(cors, { origin: true }); // UI dev server is same-machine only
 
   // ---- local auth token (skip health + static UI) ----
+  const expected = Buffer.from(`Bearer ${cfg.token}`);
+  const tokenOk = (auth: string | undefined): boolean => {
+    if (!auth) return false;
+    const got = Buffer.from(auth);
+    return got.length === expected.length && timingSafeEqual(got, expected);
+  };
   app.addHook("onRequest", async (req, reply) => {
     const url = req.url.split("?")[0] ?? "";
     if (url === "/health" || url === "/" || url.startsWith("/ui")) return;
-    const auth = req.headers["authorization"];
-    if (auth !== `Bearer ${cfg.token}`) {
+    if (!tokenOk(req.headers["authorization"])) {
       reply.code(401).send({ error: { code: "unauthorized", message: "missing or invalid token" } });
     }
   });
 
   app.setErrorHandler((err, _req, reply) => {
     if (err instanceof AppError)
-      return reply.code(err.status).send({ error: { code: err.code, message: err.message } });
+      return reply
+        .code(err.status)
+        .send({ error: { code: err.code, message: err.message, ...(err.data ? { data: err.data } : {}) } });
     if (err instanceof ZodError)
       return reply.code(400).send({ error: { code: "validation_error", message: err.message } });
     // Never leak internals (may reference secret refs). Log server-side only.
@@ -53,10 +65,17 @@ export async function buildServer(core: AgentPassCore, cfg: DaemonConfig): Promi
     return reply.code(500).send({ error: { code: "internal", message: "internal error" } });
   });
 
-  app.get("/health", async () => ({ status: "ok", service: "agentpass", version: "0.1.0" }));
+  app.get("/health", async () => ({
+    status: "ok",
+    service: "agentpass",
+    version: "0.1.0",
+    stats: core.stats(),
+  }));
 
   // ---- targets ----
-  app.get("/targets", async () => ({ targets: core.listTargets() }));
+  app.get("/targets", async (req) => ({
+    targets: core.listTargets(targetQuerySchema.parse(req.query ?? {})),
+  }));
   app.post("/targets", async (req, reply) => {
     const t = core.createTarget(parse(createTargetSchema, req.body));
     return reply.code(201).send(t);
@@ -66,12 +85,14 @@ export async function buildServer(core: AgentPassCore, cfg: DaemonConfig): Promi
     core.updateTarget(req.params.id, parse(updateTargetSchema, req.body)),
   );
   app.delete<{ Params: { id: string } }>("/targets/:id", async (req, reply) => {
-    core.deleteTarget(req.params.id);
+    await core.deleteTarget(req.params.id);
     return reply.code(204).send();
   });
 
   // ---- credentials ----
-  app.get("/credentials", async () => ({ credentials: core.listCredentials() }));
+  app.get("/credentials", async (req) => ({
+    credentials: core.listCredentials(credentialQuerySchema.parse(req.query ?? {})),
+  }));
   app.post("/credentials", async (req, reply) => {
     const c = await core.createCredential(parse(createCredentialSchema, req.body));
     return reply.code(201).send(c);
@@ -92,6 +113,18 @@ export async function buildServer(core: AgentPassCore, cfg: DaemonConfig): Promi
   app.get("/reveals", async () => ({ reveals: core.listReveals() }));
   app.get<{ Params: { id: string } }>("/reveals/:id", async (req) => core.getReveal(req.params.id));
   app.post<{ Params: { id: string } }>("/reveals/:id/revoke", async (req) => core.revokeReveal(req.params.id));
+
+  // ---- reveal requests (approval gate) ----
+  app.get("/reveal-requests", async () => ({ requests: core.listRevealRequests() }));
+  app.get<{ Params: { id: string } }>("/reveal-requests/:id", async (req) =>
+    core.getRevealRequest(req.params.id),
+  );
+  app.post<{ Params: { id: string } }>("/reveal-requests/:id/approve", async (req) =>
+    core.decideRevealRequest(req.params.id, true, decideRevealRequestSchema.parse(req.body ?? {})),
+  );
+  app.post<{ Params: { id: string } }>("/reveal-requests/:id/deny", async (req) =>
+    core.decideRevealRequest(req.params.id, false, decideRevealRequestSchema.parse(req.body ?? {})),
+  );
 
   // ---- checkout (RECOMMENDED) ----
   app.post<{ Params: { id: string } }>("/targets/:id/checkout", async (req) =>
@@ -125,8 +158,8 @@ export async function buildServer(core: AgentPassCore, cfg: DaemonConfig): Promi
   app.post("/rotation-jobs/run-auto", async () => core.runAutoRotations());
 
   // ---- audit ----
-  app.get<{ Querystring: { limit?: string } }>("/audit-logs", async (req) => ({
-    logs: core.listAudit(req.query.limit ? Number(req.query.limit) : undefined),
+  app.get("/audit-logs", async (req) => ({
+    logs: core.listAudit(auditQuerySchema.parse(req.query ?? {})),
   }));
 
   // ---- optional static Web UI (built Tauri/Vite frontend) ----

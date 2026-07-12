@@ -3,11 +3,20 @@ export class AppError extends Error {
     public readonly code: string,
     message: string,
     public readonly status = 400,
+    public readonly data?: Record<string, unknown>,
   ) {
     super(message);
     this.name = "AppError";
   }
 }
+
+export const approvalRequired = (requestId: string) =>
+  new AppError(
+    "approval_required",
+    `reveal requires approval; request ${requestId} is pending`,
+    403,
+    { reveal_request_id: requestId },
+  );
 
 export const notFound = (what: string, id: string) =>
   new AppError("not_found", `${what} not found: ${id}`, 404);

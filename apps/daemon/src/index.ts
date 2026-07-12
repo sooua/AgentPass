@@ -4,19 +4,36 @@ import { buildCore } from "./wiring.js";
 
 async function main(): Promise<void> {
   const cfg = loadConfig();
-  const { core } = buildCore(cfg);
+  const { core, store } = buildCore(cfg);
 
-  // Clean up anything left over from a previous run, then sweep periodically.
-  await core.sweepExpired();
-  await core.runAutoRotations();
-  const timer = setInterval(() => {
-    void core.sweepExpired();
-    void core.runAutoRotations();
-  }, 30_000);
+  // Maintenance pass: clean expired access, enqueue due rotations, run auto
+  // rotations, prune old terminal records.
+  const maintain = async () => {
+    await core.sweepExpired();
+    core.scanDueRotations();
+    await core.runAutoRotations();
+    core.pruneOld(Number(process.env.AGENTPASS_RETENTION_DAYS ?? 30));
+  };
+  await maintain();
+  const timer = setInterval(() => void maintain(), 30_000);
   timer.unref();
 
   const app = await buildServer(core, cfg);
   await app.listen({ host: cfg.host, port: cfg.port });
+
+  // Graceful shutdown: stop accepting, close the DB cleanly.
+  const shutdown = async (sig: string) => {
+    console.error(`agentpass daemon shutting down (${sig})`);
+    clearInterval(timer);
+    try {
+      await app.close();
+      store.close();
+    } finally {
+      process.exit(0);
+    }
+  };
+  process.on("SIGINT", () => void shutdown("SIGINT"));
+  process.on("SIGTERM", () => void shutdown("SIGTERM"));
 
   // token is printed once so the operator/MCP server can pick it up locally.
   console.log(

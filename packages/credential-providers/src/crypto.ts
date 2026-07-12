@@ -4,14 +4,9 @@ import {
   createHash,
   randomBytes,
 } from "node:crypto";
-import {
-  chmodSync,
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  writeFileSync,
-} from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
+import { secureLocalFile } from "@agentpass/shared";
 
 const ALGO = "aes-256-gcm";
 
@@ -50,10 +45,6 @@ export function loadOrCreateMasterKey(keyPath: string): Buffer {
   mkdirSync(dirname(keyPath), { recursive: true });
   const key = randomBytes(32);
   writeFileSync(keyPath, key.toString("base64"), { mode: 0o600 });
-  try {
-    chmodSync(keyPath, 0o600); // no-op semantics on Windows, best-effort elsewhere
-  } catch {
-    /* platform without POSIX perms */
-  }
+  secureLocalFile(keyPath); // POSIX chmod + Windows ACL lockdown
   return key;
 }

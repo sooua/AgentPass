@@ -8,6 +8,7 @@ import type {
   Credential,
   CredentialProviderKind,
   CredentialType,
+  RevealRequest,
   RotationJob,
   RotationPolicy,
   SecretReveal,
@@ -107,12 +108,22 @@ export interface Repository {
   getReveal(id: string): SecretReveal | null;
   listReveals(): SecretReveal[];
   updateReveal(id: string, patch: Partial<SecretReveal>): SecretReveal | null;
+  /** Delete terminal (expired/revoked/rotated) reveals older than the given ISO time. */
+  pruneReveals(beforeIso: string): number;
+
+  // reveal requests (approval gate)
+  createRevealRequest(r: RevealRequest): void;
+  getRevealRequest(id: string): RevealRequest | null;
+  listRevealRequests(): RevealRequest[];
+  updateRevealRequest(id: string, patch: Partial<RevealRequest>): RevealRequest | null;
 
   // checkouts
   createCheckout(s: CheckoutSession): void;
   getCheckout(id: string): CheckoutSession | null;
   listCheckouts(): CheckoutSession[];
   updateCheckout(id: string, patch: Partial<CheckoutSession>): CheckoutSession | null;
+  /** Delete terminal (expired/revoked) checkouts older than the given ISO time. */
+  pruneCheckouts(beforeIso: string): number;
 
   // rotation policies
   createRotationPolicy(p: RotationPolicy): void;

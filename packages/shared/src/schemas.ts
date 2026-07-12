@@ -1,5 +1,14 @@
 import { z } from "zod";
 
+/** Upper bound on any single secret (1 MiB) — guards against oversized blobs. */
+export const MAX_SECRET_BYTES = 1024 * 1024;
+const boundedSecret = z
+  .string()
+  .min(1)
+  .refine((s) => Buffer.byteLength(s, "utf8") <= MAX_SECRET_BYTES, {
+    message: `secret exceeds ${MAX_SECRET_BYTES} bytes`,
+  });
+
 export const targetTypeSchema = z.enum(["ssh", "database", "kubernetes", "api"]);
 export const environmentSchema = z.enum(["dev", "staging", "prod"]);
 export const credentialTypeSchema = z.enum([
@@ -42,7 +51,7 @@ export const createCredentialSchema = z.object({
   type: credentialTypeSchema,
   provider: credentialProviderSchema.default("local_encrypted"),
   /** Plaintext secret material — only ever accepted at this trust boundary. */
-  secret_value: z.string().min(1),
+  secret_value: boundedSecret,
   metadata: z.record(z.unknown()).default({}),
   rotation_policy_id: z.string().nullable().default(null),
 });
@@ -50,7 +59,7 @@ export type CreateCredentialInput = z.infer<typeof createCredentialSchema>;
 
 export const updateCredentialSchema = z.object({
   name: z.string().min(1).optional(),
-  secret_value: z.string().min(1).optional(),
+  secret_value: boundedSecret.optional(),
   metadata: z.record(z.unknown()).optional(),
   rotation_policy_id: z.string().nullable().optional(),
 });
@@ -61,8 +70,43 @@ export const revealSchema = z.object({
   requested_by: z.string().min(1),
   purpose: z.string().min(1),
   ttl_seconds: z.number().int().positive().max(86400).default(300),
+  /** Consumes an approved RevealRequest when the credential's policy requires approval. */
+  approval_id: z.string().optional(),
 });
 export type RevealInput = z.infer<typeof revealSchema>;
+
+export const decideRevealRequestSchema = z.object({
+  decided_by: z.string().min(1).default("operator"),
+});
+export type DecideRevealRequestInput = z.infer<typeof decideRevealRequestSchema>;
+
+// ---- list query filters (all optional) ----
+export const targetQuerySchema = z.object({
+  q: z.string().optional(),
+  environment: environmentSchema.optional(),
+  type: targetTypeSchema.optional(),
+  tag: z.string().optional(),
+  limit: z.coerce.number().int().positive().max(1000).optional(),
+  offset: z.coerce.number().int().nonnegative().optional(),
+});
+export type TargetQuery = z.infer<typeof targetQuerySchema>;
+
+export const credentialQuerySchema = z.object({
+  q: z.string().optional(),
+  type: credentialTypeSchema.optional(),
+  status: z.enum(["active", "rotation_required", "expired", "revoked"]).optional(),
+  limit: z.coerce.number().int().positive().max(1000).optional(),
+  offset: z.coerce.number().int().nonnegative().optional(),
+});
+export type CredentialQuery = z.infer<typeof credentialQuerySchema>;
+
+export const auditQuerySchema = z.object({
+  actor: z.string().optional(),
+  action: z.string().optional(),
+  risk_level: z.enum(["low", "medium", "high", "critical"]).optional(),
+  limit: z.coerce.number().int().positive().max(2000).optional(),
+});
+export type AuditQuery = z.infer<typeof auditQuerySchema>;
 
 export const checkoutSchema = z.object({
   purpose: z.string().min(1),
@@ -102,7 +146,7 @@ export type CreateRotationJobInput = z.infer<typeof createRotationJobSchema>;
 
 export const markRotationSuccessSchema = z.object({
   /** New plaintext secret to store as the rotated material. */
-  new_secret_value: z.string().min(1),
+  new_secret_value: boundedSecret,
   new_secret_version: z.string().optional(),
 });
 export type MarkRotationSuccessInput = z.infer<typeof markRotationSuccessSchema>;

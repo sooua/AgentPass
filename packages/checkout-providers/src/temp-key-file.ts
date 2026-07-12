@@ -1,5 +1,6 @@
-import { chmodSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { secureLocalFile } from "@agentpass/shared";
 import type {
   CheckoutArtifact,
   CheckoutCreateInput,
@@ -28,22 +29,14 @@ export class TempKeyFileCheckoutProvider implements CheckoutProvider {
   async create(input: CheckoutCreateInput): Promise<CheckoutArtifact> {
     const dir = join(this.baseDir, input.checkout_id);
     mkdirSync(dir, { recursive: true });
-    try {
-      chmodSync(dir, 0o700);
-    } catch {
-      /* non-POSIX */
-    }
+    secureLocalFile(dir, 0o700);
 
     const keyPath = join(dir, "id_key");
     const key = input.secret_value.endsWith("\n")
       ? input.secret_value
       : input.secret_value + "\n";
     writeFileSync(keyPath, key, { mode: 0o600 });
-    try {
-      chmodSync(keyPath, 0o600);
-    } catch {
-      /* non-POSIX */
-    }
+    secureLocalFile(keyPath); // 0600 + Windows ACL
 
     const alias = aliasFor(input.target);
     const configPath = join(dir, "config");

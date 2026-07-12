@@ -6,6 +6,7 @@ import type {
   AuditLog,
   CheckoutSession,
   Credential,
+  RevealRequest,
   RotationJob,
   RotationPolicy,
   SecretReveal,
@@ -15,10 +16,12 @@ import type { Repository, SecretBlobStore } from "@agentpass/core";
 
 // ponytail: whole-row JSON per entity (id TEXT PK, data JSON). MVP scale only.
 // Upgrade to typed columns + indexes when list filtering/large volume demands it.
+const SCHEMA_VERSION = 1;
 const ENTITY_TABLES = [
   "targets",
   "credentials",
   "reveals",
+  "reveal_requests",
   "checkouts",
   "rotation_policies",
   "rotation_jobs",
@@ -55,6 +58,18 @@ export class SqliteStore implements Repository, SecretBlobStore {
     this.db.exec(
       `CREATE TABLE IF NOT EXISTS secret_blobs (ref TEXT PRIMARY KEY, ciphertext TEXT NOT NULL)`,
     );
+    // Schema version marker for future migrations.
+    this.db.exec(`CREATE TABLE IF NOT EXISTS _meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)`);
+    this.db
+      .prepare(`INSERT INTO _meta (key, value) VALUES ('schema_version', ?) ON CONFLICT(key) DO NOTHING`)
+      .run(String(SCHEMA_VERSION));
+  }
+
+  get schemaVersion(): number {
+    const r = this.db.prepare(`SELECT value FROM _meta WHERE key = 'schema_version'`).get() as
+      | { value: string }
+      | undefined;
+    return r ? Number(r.value) : 0;
   }
 
   close(): void {
@@ -146,6 +161,30 @@ export class SqliteStore implements Repository, SecretBlobStore {
   updateReveal(id: string, patch: Partial<SecretReveal>): SecretReveal | null {
     return this.patchRow<SecretReveal>("reveals", id, patch);
   }
+  pruneReveals(beforeIso: string): number {
+    const res = this.db
+      .prepare(
+        `DELETE FROM reveals
+         WHERE json_extract(data,'$.status') IN ('expired','revoked','rotated')
+           AND json_extract(data,'$.revealed_at') < ?`,
+      )
+      .run(beforeIso);
+    return res.changes as number;
+  }
+
+  // ---- reveal requests ----
+  createRevealRequest(r: RevealRequest): void {
+    this.insert("reveal_requests", r);
+  }
+  getRevealRequest(id: string): RevealRequest | null {
+    return this.getRow<RevealRequest>("reveal_requests", id);
+  }
+  listRevealRequests(): RevealRequest[] {
+    return this.allRows<RevealRequest>("reveal_requests");
+  }
+  updateRevealRequest(id: string, patch: Partial<RevealRequest>): RevealRequest | null {
+    return this.patchRow<RevealRequest>("reveal_requests", id, patch);
+  }
 
   // ---- checkouts ----
   createCheckout(s: CheckoutSession): void {
@@ -159,6 +198,16 @@ export class SqliteStore implements Repository, SecretBlobStore {
   }
   updateCheckout(id: string, patch: Partial<CheckoutSession>): CheckoutSession | null {
     return this.patchRow<CheckoutSession>("checkouts", id, patch);
+  }
+  pruneCheckouts(beforeIso: string): number {
+    const res = this.db
+      .prepare(
+        `DELETE FROM checkouts
+         WHERE json_extract(data,'$.status') IN ('expired','revoked')
+           AND json_extract(data,'$.created_at') < ?`,
+      )
+      .run(beforeIso);
+    return res.changes as number;
   }
 
   // ---- rotation policies ----

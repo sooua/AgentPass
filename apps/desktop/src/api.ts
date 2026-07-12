@@ -21,22 +21,31 @@ async function req(method: string, path: string, body?: unknown): Promise<any> {
   return json;
 }
 
+const qs = (params: Record<string, string | undefined>) => {
+  const p = Object.entries(params).filter(([, v]) => v);
+  return p.length ? "?" + new URLSearchParams(p as [string, string][]).toString() : "";
+};
+
 export const api = {
   health: () => req("GET", "/health"),
-  targets: () => req("GET", "/targets"),
+  targets: (f: Record<string, string | undefined> = {}) => req("GET", "/targets" + qs(f)),
   createTarget: (b: unknown) => req("POST", "/targets", b),
+  patchTarget: (id: string, b: unknown) => req("PATCH", `/targets/${id}`, b),
   deleteTarget: (id: string) => req("DELETE", `/targets/${id}`),
-  credentials: () => req("GET", "/credentials"),
+  credentials: (f: Record<string, string | undefined> = {}) => req("GET", "/credentials" + qs(f)),
   createCredential: (b: unknown) => req("POST", "/credentials", b),
   deleteCredential: (id: string) => req("DELETE", `/credentials/${id}`),
   reveal: (id: string, b: unknown) => req("POST", `/credentials/${id}/reveal`, b),
   reveals: () => req("GET", "/reveals"),
   revokeReveal: (id: string) => req("POST", `/reveals/${id}/revoke`),
+  revealRequests: () => req("GET", "/reveal-requests"),
+  approveRevealRequest: (id: string) => req("POST", `/reveal-requests/${id}/approve`, { decided_by: "desktop-ui" }),
+  denyRevealRequest: (id: string) => req("POST", `/reveal-requests/${id}/deny`, { decided_by: "desktop-ui" }),
   checkout: (id: string, b: unknown) => req("POST", `/targets/${id}/checkout`, b),
   checkouts: () => req("GET", "/checkouts"),
   revokeCheckout: (id: string) => req("POST", `/checkouts/${id}/revoke`),
   rotationJobs: () => req("GET", "/rotation-jobs"),
   scheduleRotation: (id: string, b: unknown) => req("POST", `/credentials/${id}/rotation-jobs`, b),
   markRotationSuccess: (id: string, b: unknown) => req("POST", `/rotation-jobs/${id}/mark-success`, b),
-  audit: () => req("GET", "/audit-logs?limit=200"),
+  audit: (f: Record<string, string | undefined> = {}) => req("GET", "/audit-logs" + qs({ limit: "200", ...f })),
 };

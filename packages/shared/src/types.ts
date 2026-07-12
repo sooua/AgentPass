@@ -137,6 +137,22 @@ export interface RotationJob {
   created_at: string;
 }
 
+export type RevealRequestStatus = "pending" | "approved" | "denied" | "consumed";
+
+/** Approval gate for reveals when a credential's policy requires it. */
+export interface RevealRequest {
+  id: string;
+  credential_id: string;
+  target_id: string | null;
+  requested_by: string;
+  purpose: string;
+  ttl_seconds: number;
+  status: RevealRequestStatus;
+  created_at: string;
+  decided_at: string | null;
+  decided_by: string | null;
+}
+
 export interface AuditLog {
   id: string;
   actor: string;

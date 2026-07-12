@@ -140,3 +140,11 @@ textarea { font-family: var(--mono); min-height: 120px; }
 .toolbar { display: flex; gap: 8px; align-items: center; }
 .empty { color: var(--stone); padding: 32px; text-align: center; }
 .err { color: var(--crimson); font-size: 13px; margin: 8px 0; }
+.page-head { align-items: center; }
+.filters { display: flex; gap: 12px; margin-bottom: 12px; }
+.filters input { max-width: 320px; }
+.filters select { max-width: 180px; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.chip { padding: 5px 12px; border-radius: 20px; border: 1px solid var(--border-warm); background: var(--white); font-size: 13px; cursor: pointer; }
+.chip.on { background: var(--terracotta); color: var(--ivory); border-color: var(--terracotta); }
+.chip.on .muted { color: var(--ivory); opacity: 0.8; }

@@ -25,6 +25,39 @@ server.registerTool(
 );
 
 server.registerTool(
+  "search_targets",
+  {
+    title: "Search targets",
+    description: "Filter targets by free text (name/host/user), environment, type or tag. Cheaper than list_targets when you know what you want.",
+    inputSchema: {
+      q: z.string().optional(),
+      environment: z.enum(["dev", "staging", "prod"]).optional(),
+      type: z.enum(["ssh", "database", "kubernetes", "api"]).optional(),
+      tag: z.string().optional(),
+      limit: z.number().int().positive().max(200).optional(),
+    },
+  },
+  async (args) => {
+    const qs = new URLSearchParams(
+      Object.entries(args)
+        .filter(([, v]) => v != null)
+        .map(([k, v]) => [k, String(v)] as [string, string]),
+    ).toString();
+    return ok(await client.get(`/targets${qs ? `?${qs}` : ""}`));
+  },
+);
+
+server.registerTool(
+  "set_target_credentials",
+  {
+    title: "Link credentials to a target",
+    description: "Associate credential ids with a target so it can be checked out. Replaces the target's credential list.",
+    inputSchema: { target_id: z.string(), credential_ids: z.array(z.string()) },
+  },
+  async ({ target_id, credential_ids }) => ok(await client.patch(`/targets/${target_id}`, { credential_ids })),
+);
+
+server.registerTool(
   "list_credentials",
   { title: "List credentials", description: "List credential metadata (no secrets).", inputSchema: {} },
   async () => ok(await client.get("/credentials")),
@@ -43,6 +76,7 @@ server.registerTool(
       requested_by: z.string(),
       ttl_seconds: z.number().int().positive().max(86400).default(300),
       target_id: z.string().nullable().default(null),
+      approval_id: z.string().optional(),
     },
   },
   async ({ credential_id, ...body }) => ok(await client.post(`/credentials/${credential_id}/reveal`, body)),
@@ -139,6 +173,22 @@ server.registerTool(
 );
 
 server.registerTool(
+  "list_reveal_requests",
+  { title: "List reveal requests", description: "Pending/decided approval requests for gated reveals.", inputSchema: {} },
+  async () => ok(await client.get("/reveal-requests")),
+);
+
+server.registerTool(
+  "approve_reveal_request",
+  {
+    title: "Approve a reveal request",
+    description: "Approve a pending reveal request; then call reveal_secret again with the returned approval_id (= request id).",
+    inputSchema: { request_id: z.string(), decided_by: z.string().default("operator") },
+  },
+  async ({ request_id, decided_by }) => ok(await client.post(`/reveal-requests/${request_id}/approve`, { decided_by })),
+);
+
+server.registerTool(
   "list_audit_logs",
   { title: "List audit logs", description: "List recent audit log entries (redacted).", inputSchema: { limit: z.number().int().positive().max(1000).default(100) } },
   async ({ limit }) => ok(await client.get(`/audit-logs?limit=${limit}`)),
@@ -149,6 +199,8 @@ async function main(): Promise<void> {
   await server.connect(transport);
   // stdout is reserved for MCP protocol; diagnostics go to stderr.
   console.error("agentpass mcp-server ready (stdio)");
+  // Warn early (not fatal) if the daemon isn't up yet.
+  await client.ping().catch((e: Error) => console.error(`warning: ${e.message}`));
 }
 
 main().catch((err) => {

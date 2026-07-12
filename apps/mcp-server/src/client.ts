@@ -5,6 +5,8 @@ import { join } from "node:path";
 export interface DaemonClient {
   get(path: string): Promise<unknown>;
   post(path: string, body?: unknown): Promise<unknown>;
+  patch(path: string, body?: unknown): Promise<unknown>;
+  ping(): Promise<void>;
 }
 
 function resolveToken(): string {
@@ -30,15 +32,22 @@ export function createClient(): DaemonClient {
     return json;
   };
 
+  const send = (method: string) => async (path: string, body?: unknown) =>
+    handle(await fetch(base + path, { method, headers, body: JSON.stringify(body ?? {}) }));
+
   return {
     get: async (path) => handle(await fetch(base + path, { headers })),
-    post: async (path, body) =>
-      handle(
-        await fetch(base + path, {
-          method: "POST",
-          headers,
-          body: JSON.stringify(body ?? {}),
-        }),
-      ),
+    post: send("POST"),
+    patch: send("PATCH"),
+    ping: async () => {
+      try {
+        const res = await fetch(base + "/health");
+        if (!res.ok) throw new Error(String(res.status));
+      } catch {
+        throw new Error(
+          `agentpass daemon unreachable at ${base} — start it with \`pnpm daemon\` (set AGENTPASS_URL if on a non-default port)`,
+        );
+      }
+    },
   };
 }

@@ -11,10 +11,19 @@ const en: Record<string, string> = {
   "nav.reveals": "Reveal history",
   "nav.checkouts": "Checkout sessions",
   "nav.rotation": "Rotation jobs",
+  "nav.requests": "Approvals",
   "nav.audit": "Audit logs",
   "nav.settings": "Settings",
 
   "common.create": "Create",
+  "common.refresh": "Refresh",
+  "common.copy": "Copy",
+  "common.copied": "Copied",
+  "common.approve": "Approve",
+  "common.deny": "Deny",
+  "common.search": "Search",
+  "common.all": "All",
+  "common.credentials": "Credentials",
   "common.delete": "Delete",
   "common.revoke": "Revoke",
   "common.cancel": "Cancel",
@@ -112,6 +121,14 @@ const en: Record<string, string> = {
   "settings.theme": "Theme",
   "theme.light": "Light",
   "theme.dark": "Dark",
+
+  "reveal.pending": "This credential requires approval. A request was created — ask an operator to approve it in Approvals, then reveal again.",
+  "reveal.autoclear": "Secret auto-clears in",
+
+  "requests.title": "Reveal approvals",
+  "requests.sub": "Reveals blocked by policy. Approve or deny each request.",
+  "requests.decidedBy": "Decided by",
+  "requests.empty": "No reveal requests.",
 };
 
 const zh: Record<string, string> = {
@@ -121,10 +138,19 @@ const zh: Record<string, string> = {
   "nav.reveals": "明文记录",
   "nav.checkouts": "签出会话",
   "nav.rotation": "轮换任务",
+  "nav.requests": "审批",
   "nav.audit": "审计日志",
   "nav.settings": "设置",
 
   "common.create": "创建",
+  "common.refresh": "刷新",
+  "common.copy": "复制",
+  "common.copied": "已复制",
+  "common.approve": "批准",
+  "common.deny": "拒绝",
+  "common.search": "搜索",
+  "common.all": "全部",
+  "common.credentials": "凭据",
   "common.delete": "删除",
   "common.revoke": "吊销",
   "common.cancel": "取消",
@@ -222,6 +248,14 @@ const zh: Record<string, string> = {
   "settings.theme": "主题",
   "theme.light": "浅色",
   "theme.dark": "深色",
+
+  "reveal.pending": "该凭据需审批。已创建请求 —— 请管理员在「审批」中批准后再暴露。",
+  "reveal.autoclear": "密钥将在此后自动清除",
+
+  "requests.title": "暴露审批",
+  "requests.sub": "被策略拦截的明文暴露。逐条批准或拒绝。",
+  "requests.decidedBy": "处理人",
+  "requests.empty": "暂无暴露请求。",
 };
 
 const dicts: Record<Lang, Record<string, string>> = { en, zh };

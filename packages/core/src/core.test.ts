@@ -14,10 +14,11 @@ const FAKE_KEY = "-----BEGIN FAKE KEY-----\nnot-a-real-key\n-----END FAKE KEY---
 
 let dir: string;
 let core: AgentPassCore;
+let store: SqliteStore;
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), "agentpass-test-"));
-  const store = new SqliteStore(":memory:");
+  store = new SqliteStore(":memory:");
   const local = new LocalEncryptedStoreProvider(randomBytes(32), store);
   core = new AgentPassCore({
     repo: store,
@@ -122,6 +123,81 @@ describe("auto rotation", () => {
     const revealed = await core.reveal(cred.id, { target_id: null, requested_by: "t", purpose: "p", ttl_seconds: 60 });
     expect(revealed.secret_value).not.toBe(FAKE_KEY);
     expect(revealed.secret_value).toContain("OPENSSH PRIVATE KEY");
+  });
+});
+
+describe("approval gate", () => {
+  const policyWithApproval = () =>
+    core.createRotationPolicy({
+      name: "needs-approval", rotate_after_reveal: false, rotation_grace_period_minutes: 0,
+      rotation_interval_days: null, max_reveals_before_rotation: null,
+      auto_rotate_enabled: false, approval_required: true,
+    });
+
+  it("blocks reveal without approval, then allows it once approved", async () => {
+    const p = policyWithApproval();
+    const cred = await core.createCredential({
+      name: "prod-pw", type: "password", provider: "local_encrypted",
+      secret_value: FAKE_PASSWORD, metadata: {}, rotation_policy_id: p.id,
+    });
+    const revealArgs = { target_id: null, requested_by: "agent", purpose: "p", ttl_seconds: 60 };
+
+    await expect(core.reveal(cred.id, revealArgs)).rejects.toMatchObject({ code: "approval_required" });
+    const reqs = core.listRevealRequests();
+    expect(reqs).toHaveLength(1);
+    expect(reqs[0]!.status).toBe("pending");
+
+    core.decideRevealRequest(reqs[0]!.id, true, { decided_by: "me" });
+    const res = await core.reveal(cred.id, { ...revealArgs, approval_id: reqs[0]!.id });
+    expect(res.secret_value).toBe(FAKE_PASSWORD);
+    // approval is single-use
+    await expect(core.reveal(cred.id, { ...revealArgs, approval_id: reqs[0]!.id })).rejects.toMatchObject({ code: "conflict" });
+  });
+});
+
+describe("delete cascade", () => {
+  it("unlinks credential from targets and revokes its checkouts on delete", async () => {
+    const cred = await core.createCredential({
+      name: "k", type: "ssh_private_key", provider: "local_encrypted",
+      secret_value: FAKE_KEY, metadata: {}, rotation_policy_id: null,
+    });
+    const target = core.createTarget({
+      name: "h", type: "ssh", host: "1.1.1.1", port: 22, username: "u",
+      tags: [], environment: "dev", credential_ids: [cred.id],
+    });
+    const chk = await core.checkout(target.id, { purpose: "p", requested_by: "a", ttl_seconds: 900, mode: "temp_key_file" });
+
+    await core.deleteCredential(cred.id);
+    expect(core.getTarget(target.id).credential_ids).not.toContain(cred.id);
+    expect(core.getCheckout(chk.checkout_id).status).toBe("revoked");
+  });
+});
+
+describe("scheduled rotation scan", () => {
+  it("enqueues a job when next_rotation_due_at has passed", async () => {
+    const cred = await core.createCredential({
+      name: "t", type: "api_token", provider: "local_encrypted",
+      secret_value: "FAKE", metadata: {}, rotation_policy_id: null,
+    });
+    store.updateCredential(cred.id, { next_rotation_due_at: "2000-01-01T00:00:00.000Z" });
+    expect(core.scanDueRotations()).toBe(1);
+    expect(core.getCredential(cred.id).status).toBe("rotation_required");
+    expect(core.listRotationJobs().some((j) => j.reason === "scheduled")).toBe(true);
+    // idempotent: an open job already exists
+    expect(core.scanDueRotations()).toBe(0);
+  });
+});
+
+describe("prune", () => {
+  it("deletes terminal reveals older than retention", async () => {
+    const cred = await core.createCredential({
+      name: "t", type: "api_token", provider: "local_encrypted",
+      secret_value: "FAKE", metadata: {}, rotation_policy_id: null,
+    });
+    const r = await core.reveal(cred.id, { target_id: null, requested_by: "a", purpose: "p", ttl_seconds: 60 });
+    store.updateReveal(r.reveal_id, { status: "expired", revealed_at: "2000-01-01T00:00:00.000Z" });
+    expect(core.pruneOld(30).reveals).toBe(1);
+    expect(core.listReveals()).toHaveLength(0);
   });
 });
 

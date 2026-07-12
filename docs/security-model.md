@@ -43,10 +43,26 @@ explicit, audited, and rotation-aware.
   (`SystemKeychainProvider`) or a KMS-backed `KeyProvider`, or delegate secret
   storage to OpenBao/Infisical entirely. The port already exists.
 
+## Reveal approval gate
+
+When a credential's policy sets `approval_required`, `reveal_secret` is blocked:
+it opens a pending `RevealRequest` and returns `403 approval_required` with the
+request id. An operator approves it (UI Approvals page / `POST
+/reveal-requests/:id/approve` / MCP `approve_reveal_request`), then the caller
+retries `reveal` with `approval_id` (single-use). Use this to require human
+sign-off before prod plaintext reaches an agent.
+
+## File permissions
+
+Master key and temp checkout keys are locked to the current user via
+`secureLocalFile`: POSIX `chmod 0600/0700`, and on Windows `icacls
+/inheritance:r /grant:r <user>:F` (chmod alone is a no-op on Windows). Both are
+best-effort and logged nowhere.
+
 ## Threat notes / non-goals (MVP)
 
-- No multi-user auth, RBAC, or approval workflow yet (`approval_required` is a
-  policy flag reserved for later).
+- No multi-user auth or RBAC yet. `approval_required` gives a single-operator
+  approval gate, not a role model.
 - Windows file permissions: `0600`/`0700` are best-effort; on Windows the ACL
   model differs. Treat `~/.agentpass` as a protected directory.
 - No network egress except the local daemon. No telemetry.

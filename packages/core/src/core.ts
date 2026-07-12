@@ -11,6 +11,7 @@ import {
   type Credential,
   type Environment,
   type RevealResult,
+  type RevealRequest,
   type RiskLevel,
   type RotationJob,
   type RotationPolicy,
@@ -18,19 +19,23 @@ import {
   type Target,
 } from "@agentpass/shared";
 import type {
+  AuditQuery,
   CheckoutInput,
   CreateCredentialInput,
   CreateRotationJobInput,
   CreateTargetInput,
+  CredentialQuery,
+  DecideRevealRequestInput,
   MarkRotationFailedInput,
   MarkRotationSuccessInput,
   RevealInput,
   RotationPolicyInput,
+  TargetQuery,
   UpdateCredentialInput,
   UpdateRotationPolicyInput,
   UpdateTargetInput,
 } from "@agentpass/shared";
-import { badRequest, conflict, notFound, notSupported } from "./errors.js";
+import { approvalRequired, badRequest, conflict, notFound, notSupported } from "./errors.js";
 import type { Logger } from "./logger.js";
 import { createLogger } from "./logger.js";
 import type {
@@ -51,6 +56,11 @@ export interface CoreDeps {
 const riskForEnv = (env: Environment | undefined, base: RiskLevel): RiskLevel => {
   if (env === "prod") return base === "high" ? "critical" : "high";
   return base;
+};
+
+const paginate = <T>(rows: T[], offset?: number, limit?: number): T[] => {
+  const start = offset ?? 0;
+  return limit != null ? rows.slice(start, start + limit) : rows.slice(start);
 };
 
 export class AgentPassCore {
@@ -80,8 +90,12 @@ export class AgentPassCore {
     });
   }
 
-  listAudit(limit?: number): AuditLog[] {
-    return this.repo.listAudit(limit);
+  listAudit(query: AuditQuery = {}): AuditLog[] {
+    let out = this.repo.listAudit(query.limit ?? 200);
+    if (query.actor) out = out.filter((a) => a.actor === query.actor);
+    if (query.action) out = out.filter((a) => a.action === query.action);
+    if (query.risk_level) out = out.filter((a) => a.risk_level === query.risk_level);
+    return out;
   }
 
   // -------- targets --------
@@ -109,8 +123,20 @@ export class AgentPassCore {
     return t;
   }
 
-  listTargets(): Target[] {
-    return this.repo.listTargets();
+  // ponytail: in-memory filter — fine at MVP scale. Push down to SQL (indexed
+  // columns / json_extract WHERE) when target/credential counts get large.
+  listTargets(query: TargetQuery = {}): Target[] {
+    let out = this.repo.listTargets();
+    if (query.environment) out = out.filter((t) => t.environment === query.environment);
+    if (query.type) out = out.filter((t) => t.type === query.type);
+    if (query.tag) out = out.filter((t) => t.tags.includes(query.tag!));
+    if (query.q) {
+      const q = query.q.toLowerCase();
+      out = out.filter((t) =>
+        [t.name, t.host, t.username].some((f) => f.toLowerCase().includes(q)),
+      );
+    }
+    return paginate(out, query.offset, query.limit);
   }
 
   updateTarget(id: string, patch: UpdateTargetInput): Target {
@@ -119,8 +145,13 @@ export class AgentPassCore {
     return updated;
   }
 
-  deleteTarget(id: string): void {
-    if (!this.repo.deleteTarget(id)) throw notFound("target", id);
+  async deleteTarget(id: string): Promise<void> {
+    const t = this.repo.getTarget(id);
+    if (!t) throw notFound("target", id);
+    // Cascade: revoke this target's active checkouts (wipes temp key artifacts).
+    for (const s of this.repo.listCheckouts())
+      if (s.target_id === id && s.status === "active") await this.revokeCheckout(s.id);
+    this.repo.deleteTarget(id);
   }
 
   // -------- credentials --------
@@ -180,8 +211,15 @@ export class AgentPassCore {
     return c;
   }
 
-  listCredentials(): Credential[] {
-    return this.repo.listCredentials();
+  listCredentials(query: CredentialQuery = {}): Credential[] {
+    let out = this.repo.listCredentials();
+    if (query.type) out = out.filter((c) => c.type === query.type);
+    if (query.status) out = out.filter((c) => c.status === query.status);
+    if (query.q) {
+      const q = query.q.toLowerCase();
+      out = out.filter((c) => c.name.toLowerCase().includes(q));
+    }
+    return paginate(out, query.offset, query.limit);
   }
 
   async updateCredential(id: string, patch: UpdateCredentialInput): Promise<Credential> {
@@ -201,6 +239,16 @@ export class AgentPassCore {
 
   async deleteCredential(id: string): Promise<void> {
     const c = this.getCredential(id);
+    // Cascade: revoke active checkouts using this credential, then unlink it from
+    // every target so no dangling credential_ids remain.
+    for (const s of this.repo.listCheckouts())
+      if (s.credential_id === id && s.status === "active") await this.revokeCheckout(s.id);
+    for (const t of this.repo.listTargets())
+      if (t.credential_ids.includes(id))
+        this.repo.updateTarget(t.id, {
+          credential_ids: t.credential_ids.filter((cid) => cid !== id),
+          updated_at: nowIso(),
+        });
     await this.backendFor(c.provider).deleteSecret(c.secret_ref);
     this.repo.deleteCredential(id);
   }
@@ -209,6 +257,14 @@ export class AgentPassCore {
   async reveal(credentialId: string, input: RevealInput): Promise<RevealResult> {
     const c = this.getCredential(credentialId);
     if (c.status === "revoked") throw conflict("credential is revoked");
+
+    const policyForApproval = c.rotation_policy_id
+      ? this.repo.getRotationPolicy(c.rotation_policy_id)
+      : null;
+    if (policyForApproval?.approval_required) {
+      this.enforceApproval(c.id, input);
+    }
+
     const backend = this.backendFor(c.provider);
     const secret = await backend.revealSecret(c.secret_ref, {
       credential_id: c.id,
@@ -319,6 +375,77 @@ export class AgentPassCore {
       purpose: null,
       risk_level: "low",
       metadata_redacted: {},
+    });
+    return updated!;
+  }
+
+  // -------- reveal approval gate --------
+  private enforceApproval(credentialId: string, input: RevealInput): void {
+    if (input.approval_id) {
+      const req = this.repo.getRevealRequest(input.approval_id);
+      if (!req || req.credential_id !== credentialId)
+        throw badRequest("approval_id does not match this credential");
+      if (req.status === "consumed") throw conflict("approval already used");
+      if (req.status !== "approved") throw approvalRequired(req.id);
+      this.repo.updateRevealRequest(req.id, { status: "consumed" });
+      return;
+    }
+    // No approval supplied — open a pending request and block.
+    const req: RevealRequest = {
+      id: newId("rreq"),
+      credential_id: credentialId,
+      target_id: input.target_id,
+      requested_by: input.requested_by,
+      purpose: input.purpose,
+      ttl_seconds: input.ttl_seconds,
+      status: "pending",
+      created_at: nowIso(),
+      decided_at: null,
+      decided_by: null,
+    };
+    this.repo.createRevealRequest(req);
+    this.audit({
+      actor: input.requested_by,
+      action: "reveal_approval_requested",
+      resource_type: "credential",
+      resource_id: credentialId,
+      target_id: input.target_id,
+      credential_id: credentialId,
+      purpose: input.purpose,
+      risk_level: "medium",
+      metadata_redacted: { reveal_request_id: req.id },
+    });
+    throw approvalRequired(req.id);
+  }
+
+  listRevealRequests(): RevealRequest[] {
+    return this.repo.listRevealRequests();
+  }
+
+  getRevealRequest(id: string): RevealRequest {
+    const r = this.repo.getRevealRequest(id);
+    if (!r) throw notFound("reveal_request", id);
+    return r;
+  }
+
+  decideRevealRequest(id: string, approved: boolean, input: DecideRevealRequestInput): RevealRequest {
+    const req = this.getRevealRequest(id);
+    if (req.status !== "pending") throw conflict(`request already ${req.status}`);
+    const updated = this.repo.updateRevealRequest(id, {
+      status: approved ? "approved" : "denied",
+      decided_at: nowIso(),
+      decided_by: input.decided_by,
+    });
+    this.audit({
+      actor: input.decided_by,
+      action: approved ? "reveal_approved" : "reveal_denied",
+      resource_type: "credential",
+      resource_id: req.credential_id,
+      target_id: req.target_id,
+      credential_id: req.credential_id,
+      purpose: req.purpose,
+      risk_level: "medium",
+      metadata_redacted: { reveal_request_id: id },
     });
     return updated!;
   }
@@ -461,6 +588,54 @@ export class AgentPassCore {
     }
     if (checkouts || reveals) this.log.info("sweep_expired", { checkouts, reveals });
     return { checkouts, reveals };
+  }
+
+  /**
+   * Create scheduled rotation jobs for credentials whose next_rotation_due_at has
+   * passed and that don't already have an open job. This is what makes
+   * rotation_interval_days actually fire.
+   */
+  scanDueRotations(): number {
+    const openByCred = new Set(
+      this.repo
+        .listRotationJobs()
+        .filter((j) => j.status === "pending" || j.status === "running")
+        .map((j) => j.credential_id),
+    );
+    let created = 0;
+    for (const c of this.repo.listCredentials()) {
+      if (c.status === "revoked" || openByCred.has(c.id)) continue;
+      if (c.next_rotation_due_at && isPast(c.next_rotation_due_at)) {
+        this.repo.updateCredential(c.id, { status: "rotation_required", updated_at: nowIso() });
+        this.createRotationJob(c.id, { target_id: null, reason: "scheduled" });
+        created++;
+      }
+    }
+    if (created) this.log.info("scan_due_rotations", { created });
+    return created;
+  }
+
+  /** Delete terminal reveals/checkouts older than retentionDays so tables don't grow forever. */
+  pruneOld(retentionDays = 30): { reveals: number; checkouts: number } {
+    const before = addDays(nowIso(), -retentionDays);
+    const reveals = this.repo.pruneReveals(before);
+    const checkouts = this.repo.pruneCheckouts(before);
+    if (reveals || checkouts) this.log.info("prune_old", { reveals, checkouts, retentionDays });
+    return { reveals, checkouts };
+  }
+
+  /** Operational snapshot for /health and dashboards. */
+  stats(): Record<string, number> {
+    const creds = this.repo.listCredentials();
+    return {
+      targets: this.repo.listTargets().length,
+      credentials: creds.length,
+      credentials_rotation_required: creds.filter((c) => c.status === "rotation_required").length,
+      active_checkouts: this.repo.listCheckouts().filter((s) => s.status === "active").length,
+      active_reveals: this.repo.listReveals().filter((r) => r.status === "active").length,
+      pending_rotation_jobs: this.repo.listRotationJobs().filter((j) => j.status === "pending").length,
+      pending_reveal_requests: this.repo.listRevealRequests().filter((r) => r.status === "pending").length,
+    };
   }
 
   // -------- rotation policies --------

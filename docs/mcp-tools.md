@@ -8,7 +8,11 @@
 |------|--------|---------|
 | `list_targets` | — | List targets |
 | `get_target` | `target_id` | One target |
+| `search_targets` | `q?, environment?, type?, tag?, limit?` | Filtered target search (token-cheaper than list) |
+| `set_target_credentials` | `target_id, credential_ids` | Link credentials so a target can be checked out |
 | `list_credentials` | — | Credential metadata (no secrets) |
+| `list_reveal_requests` | — | Pending/decided reveal approvals |
+| `approve_reveal_request` | `request_id, decided_by?` | Approve a gated reveal; then reveal again with `approval_id` |
 | `reveal_secret` | `credential_id, purpose, requested_by, ttl_seconds?, target_id?` | **HIGH RISK** plaintext reveal |
 | `checkout_ssh_access` | `target_id, purpose, requested_by, ttl_seconds?, mode?, credential_id?` | **Recommended** temporary SSH access |
 | `revoke_checkout` | `checkout_id` | Revoke + wipe artifacts |

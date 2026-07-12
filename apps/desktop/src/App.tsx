@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { api, getToken, getUrl, setConn } from "./api.js";
 import { usePrefs, type Lang, type Theme } from "./i18n.js";
 
-type Page = "targets" | "credentials" | "reveals" | "checkouts" | "rotation" | "audit" | "settings";
+type Page = "targets" | "credentials" | "reveals" | "checkouts" | "rotation" | "requests" | "audit" | "settings";
 
 const PAGES: { id: Page; key: string }[] = [
   { id: "targets", key: "nav.targets" },
@@ -10,6 +10,7 @@ const PAGES: { id: Page; key: string }[] = [
   { id: "reveals", key: "nav.reveals" },
   { id: "checkouts", key: "nav.checkouts" },
   { id: "rotation", key: "nav.rotation" },
+  { id: "requests", key: "nav.requests" },
   { id: "audit", key: "nav.audit" },
   { id: "settings", key: "nav.settings" },
 ];
@@ -18,13 +19,19 @@ const Badge = ({ v }: { v: string }) => <span className={`badge badge-${v}`}>{v}
 const short = (s: string | null | undefined) => (s ? s.slice(0, 14) + "…" : "—");
 const time = (s: string | null) => (s ? new Date(s).toLocaleString() : "—");
 
-function useList(fn: () => Promise<any>, dep: number): { data: any; err: string } {
+// Re-runs fn when any dep changes; reload() forces a refetch (refresh button / after mutations).
+function useList(fn: () => Promise<any>, deps: unknown[] = []): { data: any; err: string; reload: () => void } {
   const [data, setData] = useState<any>(null);
   const [err, setErr] = useState("");
+  const [tick, setTick] = useState(0);
   useEffect(() => {
-    fn().then(setData).catch((e) => setErr(e.message));
-  }, [dep]);
-  return { data, err };
+    let live = true;
+    setErr("");
+    fn().then((d) => live && setData(d)).catch((e) => live && setErr(e.message));
+    return () => { live = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [...deps, tick]);
+  return { data, err, reload: () => setTick((t) => t + 1) };
 }
 
 export default function App() {
@@ -56,6 +63,7 @@ export default function App() {
         {page === "reveals" && <Reveals />}
         {page === "checkouts" && <Checkouts />}
         {page === "rotation" && <Rotation />}
+        {page === "requests" && <Requests />}
         {page === "audit" && <Audit />}
         {page === "settings" && <Settings />}
       </main>
@@ -67,21 +75,21 @@ function Seg<T extends string>({ value, onChange, options }: { value: T; onChang
   return (
     <div className="seg">
       {options.map(([v, label]) => (
-        <button key={v} className={value === v ? "on" : ""} onClick={() => onChange(v)}>
-          {label}
-        </button>
+        <button key={v} className={value === v ? "on" : ""} onClick={() => onChange(v)}>{label}</button>
       ))}
     </div>
   );
 }
 
-function Head({ title, sub }: { title: string; sub: string }) {
+function Head({ title, sub, onRefresh }: { title: string; sub: string; onRefresh?: () => void }) {
+  const { t } = usePrefs();
   return (
     <div className="page-head">
       <div>
         <h1>{title}</h1>
         <div className="subtitle">{sub}</div>
       </div>
+      {onRefresh && <button className="btn btn-sm" onClick={onRefresh}>↻ {t("common.refresh")}</button>}
     </div>
   );
 }
@@ -89,30 +97,29 @@ function Head({ title, sub }: { title: string; sub: string }) {
 // ---------------- Targets ----------------
 function Targets() {
   const { t } = usePrefs();
-  const [dep, setDep] = useState(0);
-  const { data, err } = useList(api.targets, dep);
-  const [form, setForm] = useState({ name: "", type: "ssh", host: "", port: 22, username: "", environment: "dev", tags: "" });
+  const [q, setQ] = useState("");
+  const [env, setEnv] = useState("");
+  const { data, err, reload } = useList(() => api.targets({ q: q || undefined, environment: env || undefined }), [q, env]);
+  const creds = useList(() => api.credentials(), []);
+  const [form, setForm] = useState({ name: "", type: "ssh", host: "", port: 22, username: "", environment: "dev", tags: "", credential_ids: [] as string[] });
   const [fErr, setFErr] = useState("");
   const [checkoutTarget, setCheckoutTarget] = useState<any>(null);
+
+  const toggleCred = (id: string) =>
+    setForm((f) => ({ ...f, credential_ids: f.credential_ids.includes(id) ? f.credential_ids.filter((x) => x !== id) : [...f.credential_ids, id] }));
 
   const submit = async () => {
     setFErr("");
     try {
-      await api.createTarget({
-        ...form,
-        port: Number(form.port),
-        tags: form.tags ? form.tags.split(",").map((s) => s.trim()) : [],
-      });
-      setForm({ name: "", type: "ssh", host: "", port: 22, username: "", environment: "dev", tags: "" });
-      setDep((x) => x + 1);
-    } catch (e: any) {
-      setFErr(e.message);
-    }
+      await api.createTarget({ ...form, port: Number(form.port), tags: form.tags ? form.tags.split(",").map((s) => s.trim()) : [] });
+      setForm({ name: "", type: "ssh", host: "", port: 22, username: "", environment: "dev", tags: "", credential_ids: [] });
+      reload();
+    } catch (e: any) { setFErr(e.message); }
   };
 
   return (
     <>
-      <Head title={t("targets.title")} sub={t("targets.sub")} />
+      <Head title={t("targets.title")} sub={t("targets.sub")} onRefresh={reload} />
       <div className="card">
         <h3>{t("targets.add")}</h3>
         <div className="row">
@@ -135,10 +142,25 @@ function Targets() {
         </div>
         <label>{t("targets.tags")}</label>
         <input value={form.tags} onChange={(e) => setForm({ ...form, tags: e.target.value })} />
+        <label>{t("common.credentials")}</label>
+        <div className="chips">
+          {creds.data?.credentials?.filter((c: any) => c.status !== "revoked").map((c: any) => (
+            <span key={c.id} className={`chip ${form.credential_ids.includes(c.id) ? "on" : ""}`} onClick={() => toggleCred(c.id)}>
+              {c.name} <span className="muted">· {c.type}</span>
+            </span>
+          ))}
+          {creds.data && !creds.data.credentials?.length && <span className="muted">{t("creds.empty")}</span>}
+        </div>
         {fErr && <div className="err">{fErr}</div>}
         <div style={{ marginTop: 16 }}><button className="btn-primary btn" onClick={submit}>{t("targets.add")}</button></div>
       </div>
 
+      <div className="filters">
+        <input placeholder={t("common.search")} value={q} onChange={(e) => setQ(e.target.value)} />
+        <select value={env} onChange={(e) => setEnv(e.target.value)}>
+          <option value="">{t("common.all")}</option><option>dev</option><option>staging</option><option>prod</option>
+        </select>
+      </div>
       {err && <div className="err">{err}</div>}
       <div className="card">
         <table>
@@ -153,7 +175,7 @@ function Targets() {
                 <td>{tg.credential_ids.length}</td>
                 <td className="toolbar">
                   <button className="btn-primary btn btn-sm" onClick={() => setCheckoutTarget(tg)}>{t("common.checkout")}</button>
-                  <button className="btn btn-sm" onClick={async () => { await api.deleteTarget(tg.id); setDep((x) => x + 1); }}>{t("common.delete")}</button>
+                  <button className="btn btn-sm" onClick={async () => { await api.deleteTarget(tg.id); reload(); }}>{t("common.delete")}</button>
                 </td>
               </tr>
             ))}
@@ -161,7 +183,7 @@ function Targets() {
           </tbody>
         </table>
       </div>
-      {checkoutTarget && <CheckoutModal target={checkoutTarget} onClose={() => setCheckoutTarget(null)} />}
+      {checkoutTarget && <CheckoutModal target={checkoutTarget} onClose={() => { setCheckoutTarget(null); reload(); }} />}
     </>
   );
 }
@@ -169,8 +191,9 @@ function Targets() {
 // ---------------- Credentials ----------------
 function Credentials() {
   const { t } = usePrefs();
-  const [dep, setDep] = useState(0);
-  const { data, err } = useList(api.credentials, dep);
+  const [q, setQ] = useState("");
+  const [status, setStatus] = useState("");
+  const { data, err, reload } = useList(() => api.credentials({ q: q || undefined, status: status || undefined }), [q, status]);
   const [form, setForm] = useState({ name: "", type: "password", secret_value: "" });
   const [fErr, setFErr] = useState("");
   const [revealCred, setRevealCred] = useState<any>(null);
@@ -180,13 +203,13 @@ function Credentials() {
     try {
       await api.createCredential({ ...form, provider: "local_encrypted" });
       setForm({ name: "", type: "password", secret_value: "" });
-      setDep((x) => x + 1);
+      reload();
     } catch (e: any) { setFErr(e.message); }
   };
 
   return (
     <>
-      <Head title={t("creds.title")} sub={t("creds.sub")} />
+      <Head title={t("creds.title")} sub={t("creds.sub")} onRefresh={reload} />
       <div className="card">
         <h3>{t("creds.add")}</h3>
         <div className="row">
@@ -204,6 +227,12 @@ function Credentials() {
         <div style={{ marginTop: 12 }}><button className="btn-primary btn" onClick={submit}>{t("creds.add")}</button></div>
       </div>
 
+      <div className="filters">
+        <input placeholder={t("common.search")} value={q} onChange={(e) => setQ(e.target.value)} />
+        <select value={status} onChange={(e) => setStatus(e.target.value)}>
+          <option value="">{t("common.all")}</option><option>active</option><option>rotation_required</option><option>expired</option><option>revoked</option>
+        </select>
+      </div>
       {err && <div className="err">{err}</div>}
       <div className="card">
         <table>
@@ -218,8 +247,8 @@ function Credentials() {
                 <td>{time(c.last_rotated_at)}</td>
                 <td className="toolbar">
                   <button className="btn-danger btn btn-sm" onClick={() => setRevealCred(c)}>{t("common.reveal")}</button>
-                  <button className="btn btn-sm" onClick={async () => { await api.scheduleRotation(c.id, { reason: "manual" }); setDep((x) => x + 1); }}>{t("common.rotate")}</button>
-                  <button className="btn btn-sm" onClick={async () => { await api.deleteCredential(c.id); setDep((x) => x + 1); }}>{t("common.delete")}</button>
+                  <button className="btn btn-sm" onClick={async () => { await api.scheduleRotation(c.id, { reason: "manual" }); reload(); }}>{t("common.rotate")}</button>
+                  <button className="btn btn-sm" onClick={async () => { await api.deleteCredential(c.id); reload(); }}>{t("common.delete")}</button>
                 </td>
               </tr>
             ))}
@@ -227,7 +256,7 @@ function Credentials() {
           </tbody>
         </table>
       </div>
-      {revealCred && <RevealModal cred={revealCred} onClose={() => { setRevealCred(null); setDep((x) => x + 1); }} />}
+      {revealCred && <RevealModal cred={revealCred} onClose={() => { setRevealCred(null); reload(); }} />}
     </>
   );
 }
@@ -238,19 +267,42 @@ function RevealModal({ cred, onClose }: { cred: any; onClose: () => void }) {
   const [purpose, setPurpose] = useState("");
   const [result, setResult] = useState<any>(null);
   const [err, setErr] = useState("");
+  const [pending, setPending] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [left, setLeft] = useState(60);
+
+  // Auto-clear the plaintext from the UI after 60s.
+  useEffect(() => {
+    if (!result) return;
+    if (left <= 0) { setResult(null); return; }
+    const id = setTimeout(() => setLeft((n) => n - 1), 1000);
+    return () => clearTimeout(id);
+  }, [result, left]);
+
   const go = async () => {
-    setErr("");
+    setErr(""); setPending(false);
     try {
       setResult(await api.reveal(cred.id, { purpose, requested_by: "desktop-ui", ttl_seconds: 300 }));
-    } catch (e: any) { setErr(e.message); }
+      setLeft(60);
+    } catch (e: any) {
+      if (String(e.message).includes("approval")) setPending(true);
+      else setErr(e.message);
+    }
   };
+  const copy = async () => { await navigator.clipboard.writeText(result.secret_value); setCopied(true); setTimeout(() => setCopied(false), 1500); };
+
   return (
     <div className="overlay" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <h2>{t("reveal.title")}</h2>
         <div className="muted">{cred.name} · {cred.type}</div>
         <div className="risk risk-high">{t("reveal.risk")}</div>
-        {!result ? (
+        {pending ? (
+          <>
+            <div className="risk risk-high">{t("reveal.pending")}</div>
+            <div style={{ marginTop: 16 }}><button className="btn" onClick={onClose}>{t("common.done")}</button></div>
+          </>
+        ) : !result ? (
           <>
             <label>{t("reveal.purpose")}</label>
             <input value={purpose} onChange={(e) => setPurpose(e.target.value)} placeholder={t("reveal.purposePh")} />
@@ -264,10 +316,14 @@ function RevealModal({ cred, onClose }: { cred: any; onClose: () => void }) {
           <>
             <label>{t("reveal.value")}</label>
             <div className="secret-box">{result.secret_value}</div>
+            <div className="toolbar" style={{ marginTop: 8 }}>
+              <button className="btn btn-sm" onClick={copy}>{copied ? t("common.copied") : t("common.copy")}</button>
+              <span className="muted">{t("reveal.autoclear")} {left}s</span>
+            </div>
             {result.rotation_required && (
               <div className="risk risk-high">{t("reveal.rotationReq")} {time(result.rotate_before)}. {t("reveal.job")}: <span className="mono">{short(result.rotation_job_id)}</span></div>
             )}
-            <div className="muted">{t("reveal.revealId")} {short(result.reveal_id)} · {t("common.expires")} {time(result.expires_at)}</div>
+            <div className="muted">{t("reveal.revealId")} {short(result.reveal_id)}</div>
             <div style={{ marginTop: 16 }}><button className="btn" onClick={onClose}>{t("common.done")}</button></div>
           </>
         )}
@@ -282,12 +338,13 @@ function CheckoutModal({ target, onClose }: { target: any; onClose: () => void }
   const [purpose, setPurpose] = useState("");
   const [result, setResult] = useState<any>(null);
   const [err, setErr] = useState("");
+  const [copied, setCopied] = useState(false);
   const go = async () => {
     setErr("");
-    try {
-      setResult(await api.checkout(target.id, { purpose, requested_by: "desktop-ui", ttl_seconds: 900, mode: "temp_key_file" }));
-    } catch (e: any) { setErr(e.message); }
+    try { setResult(await api.checkout(target.id, { purpose, requested_by: "desktop-ui", ttl_seconds: 900, mode: "temp_key_file" })); }
+    catch (e: any) { setErr(e.message); }
   };
+  const copy = async () => { await navigator.clipboard.writeText(result.ssh_command); setCopied(true); setTimeout(() => setCopied(false), 1500); };
   return (
     <div className="overlay" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
@@ -308,7 +365,10 @@ function CheckoutModal({ target, onClose }: { target: any; onClose: () => void }
           <>
             <label>{t("checkout.command")}</label>
             <div className="secret-box">{result.ssh_command}</div>
-            <div className="muted">{t("checkout.meta")} {short(result.checkout_id)} · {t("common.expires")} {time(result.expires_at)}</div>
+            <div className="toolbar" style={{ marginTop: 8 }}>
+              <button className="btn btn-sm" onClick={copy}>{copied ? t("common.copied") : t("common.copy")}</button>
+              <span className="muted">{t("checkout.meta")} {short(result.checkout_id)} · {t("common.expires")} {time(result.expires_at)}</span>
+            </div>
             <div style={{ marginTop: 16 }}><button className="btn" onClick={onClose}>{t("common.done")}</button></div>
           </>
         )}
@@ -320,11 +380,10 @@ function CheckoutModal({ target, onClose }: { target: any; onClose: () => void }
 // ---------------- Reveals ----------------
 function Reveals() {
   const { t } = usePrefs();
-  const [dep, setDep] = useState(0);
-  const { data, err } = useList(api.reveals, dep);
+  const { data, err, reload } = useList(() => api.reveals(), []);
   return (
     <>
-      <Head title={t("reveals.title")} sub={t("reveals.sub")} />
+      <Head title={t("reveals.title")} sub={t("reveals.sub")} onRefresh={reload} />
       {err && <div className="err">{err}</div>}
       <div className="card">
         <table>
@@ -338,7 +397,7 @@ function Reveals() {
                 <td>{time(r.revealed_at)}</td>
                 <td>{time(r.expires_at)}</td>
                 <td><Badge v={r.status} /></td>
-                <td>{r.status === "active" && <button className="btn btn-sm" onClick={async () => { await api.revokeReveal(r.id); setDep((x) => x + 1); }}>{t("common.revoke")}</button>}</td>
+                <td>{r.status === "active" && <button className="btn btn-sm" onClick={async () => { await api.revokeReveal(r.id); reload(); }}>{t("common.revoke")}</button>}</td>
               </tr>
             ))}
             {data && !data.reveals?.length && <tr><td colSpan={7} className="empty">{t("reveals.empty")}</td></tr>}
@@ -352,11 +411,10 @@ function Reveals() {
 // ---------------- Checkouts ----------------
 function Checkouts() {
   const { t } = usePrefs();
-  const [dep, setDep] = useState(0);
-  const { data, err } = useList(api.checkouts, dep);
+  const { data, err, reload } = useList(() => api.checkouts(), []);
   return (
     <>
-      <Head title={t("checkouts.title")} sub={t("checkouts.sub")} />
+      <Head title={t("checkouts.title")} sub={t("checkouts.sub")} onRefresh={reload} />
       {err && <div className="err">{err}</div>}
       <div className="card">
         <table>
@@ -370,7 +428,7 @@ function Checkouts() {
                 <td className="mono">{c.ssh_command || "—"}</td>
                 <td>{time(c.expires_at)}</td>
                 <td><Badge v={c.status} /></td>
-                <td>{c.status === "active" && <button className="btn btn-sm" onClick={async () => { await api.revokeCheckout(c.id); setDep((x) => x + 1); }}>{t("common.revoke")}</button>}</td>
+                <td>{c.status === "active" && <button className="btn btn-sm" onClick={async () => { await api.revokeCheckout(c.id); reload(); }}>{t("common.revoke")}</button>}</td>
               </tr>
             ))}
             {data && !data.checkouts?.length && <tr><td colSpan={7} className="empty">{t("checkouts.empty")}</td></tr>}
@@ -384,17 +442,16 @@ function Checkouts() {
 // ---------------- Rotation ----------------
 function Rotation() {
   const { t } = usePrefs();
-  const [dep, setDep] = useState(0);
-  const { data, err } = useList(api.rotationJobs, dep);
+  const { data, err, reload } = useList(() => api.rotationJobs(), []);
   const complete = async (id: string) => {
     const v = prompt(t("rotation.prompt"));
     if (!v) return;
     await api.markRotationSuccess(id, { new_secret_value: v });
-    setDep((x) => x + 1);
+    reload();
   };
   return (
     <>
-      <Head title={t("rotation.title")} sub={t("rotation.sub")} />
+      <Head title={t("rotation.title")} sub={t("rotation.sub")} onRefresh={reload} />
       {err && <div className="err">{err}</div>}
       <div className="card">
         <table>
@@ -418,13 +475,48 @@ function Rotation() {
   );
 }
 
+// ---------------- Requests (approvals) ----------------
+function Requests() {
+  const { t } = usePrefs();
+  const { data, err, reload } = useList(() => api.revealRequests(), []);
+  return (
+    <>
+      <Head title={t("requests.title")} sub={t("requests.sub")} onRefresh={reload} />
+      {err && <div className="err">{err}</div>}
+      <div className="card">
+        <table>
+          <thead><tr><th>{t("reveals.credential")}</th><th>{t("reveals.requestedBy")}</th><th>{t("common.purpose")}</th><th>{t("common.status")}</th><th>{t("requests.decidedBy")}</th><th></th></tr></thead>
+          <tbody>
+            {data?.requests?.map((r: any) => (
+              <tr key={r.id}>
+                <td className="mono">{short(r.credential_id)}</td>
+                <td>{r.requested_by}</td>
+                <td>{r.purpose}</td>
+                <td><Badge v={r.status} /></td>
+                <td>{r.decided_by || "—"}</td>
+                <td className="toolbar">
+                  {r.status === "pending" && <>
+                    <button className="btn-primary btn btn-sm" onClick={async () => { await api.approveRevealRequest(r.id); reload(); }}>{t("common.approve")}</button>
+                    <button className="btn-danger btn btn-sm" onClick={async () => { await api.denyRevealRequest(r.id); reload(); }}>{t("common.deny")}</button>
+                  </>}
+                </td>
+              </tr>
+            ))}
+            {data && !data.requests?.length && <tr><td colSpan={6} className="empty">{t("requests.empty")}</td></tr>}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
+
 // ---------------- Audit ----------------
 function Audit() {
   const { t } = usePrefs();
-  const { data, err } = useList(api.audit, 0);
+  const { data, err, reload } = useList(() => api.audit(), []);
   return (
     <>
-      <Head title={t("audit.title")} sub={t("audit.sub")} />
+      <Head title={t("audit.title")} sub={t("audit.sub")} onRefresh={reload} />
       {err && <div className="err">{err}</div>}
       <div className="card">
         <table>
