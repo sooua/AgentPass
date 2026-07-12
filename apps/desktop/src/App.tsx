@@ -3,6 +3,7 @@ import { api, getToken, getUrl, setConn } from "./api.js";
 import { usePrefs, type Lang, type Theme } from "./i18n.js";
 import { TitleBar } from "./TitleBar.js";
 import { SyncModal } from "./SyncModal.js";
+import { checkForUpdate, installAndRestart, type UpdateInfo } from "./updater.js";
 
 type Page = "targets" | "credentials" | "reveals" | "checkouts" | "rotation" | "requests" | "audit" | "settings";
 
@@ -644,6 +645,41 @@ function Audit() {
   );
 }
 
+// ---------------- Update panel ----------------
+function UpdatePanel() {
+  const { t } = usePrefs();
+  const [status, setStatus] = useState("");
+  const [info, setInfo] = useState<UpdateInfo | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const check = async () => {
+    setStatus(t("update.checking")); setInfo(null);
+    const r = await checkForUpdate();
+    if (r.state === "web") setStatus(t("update.webOnly"));
+    else if (r.state === "none") setStatus(t("update.upToDate"));
+    else if (r.state === "error") setStatus("error: " + r.message);
+    else { setInfo(r.info); setStatus(`${t("update.available")}: v${r.info.version}`); }
+  };
+  const install = async () => {
+    if (!info) return;
+    setBusy(true); setStatus(t("update.installing"));
+    try { await installAndRestart(info); } catch (e: any) { setStatus("error: " + e.message); setBusy(false); }
+  };
+
+  return (
+    <div className="card">
+      <h3>{t("update.title")}</h3>
+      <div className="subtitle" style={{ marginBottom: 12 }}>{t("update.sub")}</div>
+      <div className="toolbar">
+        <button className="btn" onClick={check} disabled={busy}>{t("update.check")}</button>
+        {info && <button className="btn-primary btn" onClick={install} disabled={busy}>{t("update.install")}</button>}
+        <span className="muted">{status}</span>
+      </div>
+      {info?.body && <div className="muted" style={{ marginTop: 8, whiteSpace: "pre-wrap" }}>{info.body}</div>}
+    </div>
+  );
+}
+
 // ---------------- Settings ----------------
 function Settings() {
   const { t, lang, setLang, theme, setTheme } = usePrefs();
@@ -677,6 +713,7 @@ function Settings() {
         <button className="btn-primary btn" onClick={() => setSyncOpen(true)}>{t("sync.open")}…</button>
       </div>
       {syncOpen && <SyncModal onClose={() => setSyncOpen(false)} />}
+      <UpdatePanel />
       <div className="card">
         <h3>{t("settings.appearance")}</h3>
         <div className="row">
