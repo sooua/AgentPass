@@ -56,4 +56,6 @@ export const api = {
   syncRun: () => req("POST", "/sync/run"),
   syncVersions: () => req("GET", "/sync/versions"),
   syncRestore: (id: string) => req("POST", `/sync/restore/${id}`),
+  exportBackup: (passphrase: string) => req("POST", "/export", { passphrase }),
+  importBackup: (passphrase: string, blob: string) => req("POST", "/import", { passphrase, blob }),
 };

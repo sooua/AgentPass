@@ -4,6 +4,7 @@ import { api, getToken, getUrl, setConn } from "./api.js";
 import { usePrefs, type Lang, type Theme } from "./i18n.js";
 import { SyncModal } from "./SyncModal.js";
 import { checkForUpdate, installAndRestart, type UpdateInfo } from "./updater.js";
+import { clearPin, hasPin, lockMinutes, setLockMinutes, setPin, verifyPin } from "./lock.js";
 
 // Global refresh signal: the topbar refresh button bumps this; every useList
 // includes it, so the active page refetches.
@@ -64,6 +65,23 @@ function useCopy(): { state: "" | "ok" | "fail"; copy: (text: string) => void } 
   return { state, copy };
 }
 
+// Poll the daemon; on failure re-read conn.json and retry (C1/C2). Returns the
+// live connection state for the topbar indicator.
+function useConnection(): boolean {
+  const [ok, setOk] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    const ping = async () => {
+      try { await api.health(); if (alive) setOk(true); }
+      catch { if (alive) { setOk(false); await autoConnect(); } }
+    };
+    void ping();
+    const id = setInterval(() => void ping(), 5000);
+    return () => { alive = false; clearInterval(id); };
+  }, []);
+  return ok;
+}
+
 // Re-runs fn when any dep changes; reload() forces a refetch (refresh button / after mutations).
 function useList(fn: () => Promise<any>, deps: unknown[] = []): { data: any; err: string; reload: () => void } {
   const [data, setData] = useState<any>(null);
@@ -83,8 +101,22 @@ function useList(fn: () => Promise<any>, deps: unknown[] = []): { data: any; err
 export default function App() {
   const [page, setPage] = useState<Page>("targets");
   const [nonce, setNonce] = useState(0);
-  const { t, lang, setLang, theme, setTheme } = usePrefs();
+  const { t, theme, setTheme } = usePrefs();
+  const connected = useConnection();
+  const [locked, setLocked] = useState(hasPin());
   useEffect(() => { void autoConnect().then(() => setNonce((n) => n + 1)); }, []);
+  useEffect(() => { if (connected) setNonce((n) => n + 1); }, [connected]);
+  // Idle auto-lock (only when a PIN is set).
+  useEffect(() => {
+    if (!hasPin() || locked) return;
+    let timer: ReturnType<typeof setTimeout>;
+    const reset = () => { clearTimeout(timer); timer = setTimeout(() => setLocked(true), lockMinutes() * 60000); };
+    const evs = ["mousemove", "keydown", "click"] as const;
+    evs.forEach((e) => window.addEventListener(e, reset));
+    reset();
+    return () => { clearTimeout(timer); evs.forEach((e) => window.removeEventListener(e, reset)); };
+  }, [locked]);
+  if (locked) return <LockScreen onUnlock={() => setLocked(false)} />;
   return (
     <RefreshCtx.Provider value={nonce}>
     <div className="root-col">
@@ -96,8 +128,8 @@ export default function App() {
         </div>
         <div className="topbar-drag" data-tauri-drag-region />
         <div className="topbar-actions">
+          <span className={`conn-dot ${connected ? "on" : "off"}`} title={connected ? t("conn.online") : t("conn.offline")} />
           <button className="iconbtn" title={t("common.refresh")} onClick={() => setNonce((n) => n + 1)}><RefreshCw size={18} /></button>
-          <button className="iconbtn lang" title={t("settings.language")} onClick={() => setLang(lang === "zh" ? "en" : "zh")}>{lang === "zh" ? "中" : "EN"}</button>
           <button className="iconbtn" title={t("settings.theme")} onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>{theme === "dark" ? <Moon size={18} /> : <Sun size={18} />}</button>
           <button className={`iconbtn ${page === "settings" ? "on" : ""}`} title={t("nav.settings")} onClick={() => setPage("settings")}><SettingsIcon size={18} /></button>
         </div>
@@ -124,6 +156,52 @@ export default function App() {
       </div>
     </div>
     </RefreshCtx.Provider>
+  );
+}
+
+function LockScreen({ onUnlock }: { onUnlock: () => void }) {
+  const { t } = usePrefs();
+  const [pin, setPin] = useState("");
+  const [err, setErr] = useState(false);
+  const submit = async () => { (await verifyPin(pin)) ? onUnlock() : (setErr(true), setPin("")); };
+  return (
+    <div className="lockscreen">
+      <img src="logo.svg" width={48} height={48} alt="" />
+      <div className="lock-title">AgentPass</div>
+      <input
+        type="password" autoFocus value={pin} className={err ? "lock-err" : ""}
+        onChange={(e) => { setPin(e.target.value); setErr(false); }}
+        onKeyDown={(e) => e.key === "Enter" && submit()}
+        placeholder={t("lock.enter")}
+      />
+      <button className="btn-primary btn" onClick={submit}>{t("lock.unlock")}</button>
+    </div>
+  );
+}
+
+function LockCard() {
+  const { t } = usePrefs();
+  const [pin, setPin2] = useState("");
+  const [min, setMin] = useState(lockMinutes());
+  const [msg, setMsg] = useState("");
+  const enabled = hasPin();
+  return (
+    <div className="card">
+      <h3>{t("lock.title")}</h3>
+      <div className="muted" style={{ marginBottom: 10 }}>{enabled ? t("lock.on") : t("lock.off")}</div>
+      {!enabled ? (
+        <>
+          <label>{t("lock.setPin")}</label>
+          <input type="password" value={pin} onChange={(e) => setPin2(e.target.value)} />
+          <div className="toolbar" style={{ marginTop: 12 }}>
+            <button className="btn-primary btn" disabled={pin.length < 4} onClick={async () => { await setPin(pin); setPin2(""); setMsg(t("lock.enabled")); }}>{t("lock.enable")}</button>
+            <span className="muted">{msg} · {t("lock.min")}: <input type="number" value={min} min={1} style={{ width: 60, display: "inline-block" }} onChange={(e) => { setMin(Number(e.target.value)); setLockMinutes(Number(e.target.value)); }} /></span>
+          </div>
+        </>
+      ) : (
+        <button className="btn" onClick={() => { clearPin(); setMsg(t("lock.disabled")); }}>{t("lock.disable")} {msg}</button>
+      )}
+    </div>
   );
 }
 
@@ -696,8 +774,46 @@ function UpdatePanel() {
 }
 
 // ---------------- Settings ----------------
-function Settings() {
+function BackupPanel() {
   const { t } = usePrefs();
+  const [pass, setPass] = useState("");
+  const [blob, setBlob] = useState("");
+  const [msg, setMsg] = useState("");
+  const doExport = async () => {
+    setMsg("");
+    try {
+      const r = await api.exportBackup(pass);
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob([r.blob], { type: "application/json" }));
+      a.download = `agentpass-backup-${Date.now()}.json`;
+      a.click();
+      setMsg(t("backup.exported"));
+    } catch (e: any) { setMsg(e.message); }
+  };
+  const doImport = async () => {
+    setMsg("");
+    try { const r = await api.importBackup(pass, blob.trim()); setMsg(`${t("backup.imported")} (${r.stats?.credentials ?? 0})`); }
+    catch (e: any) { setMsg(e.message); }
+  };
+  return (
+    <div className="card">
+      <h3>{t("backup.title")}</h3>
+      <div className="risk risk-good" style={{ marginBottom: 8 }}>{t("backup.desc")}</div>
+      <label>{t("backup.pass")}</label>
+      <input type="password" value={pass} onChange={(e) => setPass(e.target.value)} />
+      <label>{t("backup.import")}</label>
+      <textarea value={blob} onChange={(e) => setBlob(e.target.value)} placeholder={t("backup.paste")} style={{ minHeight: 70 }} />
+      <div className="toolbar" style={{ marginTop: 12 }}>
+        <button className="btn-primary btn" disabled={!pass} onClick={doExport}>{t("backup.export")}</button>
+        <button className="btn" disabled={!pass || !blob.trim()} onClick={doImport}>{t("backup.import")}</button>
+        <span className="muted">{msg}</span>
+      </div>
+    </div>
+  );
+}
+
+function Settings() {
+  const { t, lang, setLang } = usePrefs();
   const [url, setUrl] = useState(getUrl());
   const [token, setToken] = useState(getToken());
   const [status, setStatus] = useState("");
@@ -715,7 +831,13 @@ function Settings() {
         <button className="btn-primary btn" onClick={() => setSyncOpen(true)}>{t("sync.open")}…</button>
       </div>
       {syncOpen && <SyncModal onClose={() => setSyncOpen(false)} />}
+      <BackupPanel />
       <UpdatePanel />
+      <div className="card">
+        <h3>{t("settings.language")}</h3>
+        <Seg<Lang> value={lang} onChange={setLang} options={[["en", "English"], ["zh", "中文"]]} />
+      </div>
+      <LockCard />
       <div className="card">
         <h3>{t("settings.connTitle")}</h3>
         <label>{t("settings.url")}</label>

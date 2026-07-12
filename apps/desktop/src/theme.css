@@ -71,6 +71,10 @@ a { color: var(--terracotta); text-decoration: none; }
 .topbar-drag { flex: 1; align-self: stretch; }
 /* sweep-style action buttons: 34px bordered rounded, ivory, soft-shadow hover */
 .topbar-actions { display: flex; align-items: center; gap: 8px; padding-right: 8px; }
+.conn-dot { width: 8px; height: 8px; border-radius: 50%; margin-right: 2px; }
+.conn-dot.on { background: #4a9d5b; }
+.conn-dot.off { background: var(--crimson); animation: pulse 1.4s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: 0.35; } }
 .iconbtn {
   display: inline-flex; align-items: center; justify-content: center;
   width: 34px; height: 34px; border-radius: 10px; cursor: pointer; color: var(--charcoal);
@@ -96,6 +100,10 @@ a { color: var(--terracotta); text-decoration: none; }
   border-right: 1px solid var(--border-cream); height: 100%; overflow-y: auto;
 }
 .icon-btn.danger-hover:hover { color: var(--crimson); }
+.lockscreen { height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; background: var(--parchment); }
+.lockscreen .lock-title { font-family: var(--serif); font-size: 24px; color: var(--near-black); }
+.lockscreen input { width: 240px; text-align: center; letter-spacing: 4px; font-size: 18px; }
+.lockscreen input.lock-err { border-color: var(--crimson); }
 .main { overflow-y: auto; }
 .icon-btn {
   width: 38px; height: 38px; display: inline-flex; align-items: center; justify-content: center;

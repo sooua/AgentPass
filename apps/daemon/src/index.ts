@@ -1,5 +1,6 @@
-import { writeFileSync } from "node:fs";
+import { rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { secureLocalFile } from "@agentpass/shared";
 import { loadConfig } from "./config.js";
 import { buildServer } from "./server.js";
 import { buildCore } from "./wiring.js";
@@ -10,11 +11,9 @@ async function main(): Promise<void> {
 
   // Publish the live connection so the desktop app can auto-connect (no manual
   // URL/token entry). Written 0600 next to the token.
-  writeFileSync(
-    join(cfg.home, "conn.json"),
-    JSON.stringify({ url: `http://${cfg.host}:${cfg.port}`, token: cfg.token }),
-    { mode: 0o600 },
-  );
+  const connPath = join(cfg.home, "conn.json");
+  writeFileSync(connPath, JSON.stringify({ url: `http://${cfg.host}:${cfg.port}`, token: cfg.token }), { mode: 0o600 });
+  secureLocalFile(connPath); // 0600 + Windows ACL (holds the local token)
 
   // Maintenance pass: clean expired access, enqueue due rotations, run auto
   // rotations, prune old terminal records, auto-sync if enabled.
@@ -45,6 +44,7 @@ async function main(): Promise<void> {
     try {
       await app.close();
       store.close();
+      rmSync(connPath, { force: true }); // don't leave a stale conn.json + token
     } finally {
       process.exit(0);
     }

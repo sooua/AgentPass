@@ -5,7 +5,7 @@ import cors from "@fastify/cors";
 import fastifyStatic from "@fastify/static";
 import { z, ZodError, type ZodTypeAny } from "zod";
 import { AppError, type AgentPassCore } from "@agentpass/core";
-import type { SyncEngine } from "@agentpass/sync";
+import { decryptPayload, encryptPayload, type SyncEngine } from "@agentpass/sync";
 import {
   MAX_SECRET_BYTES,
   auditQuerySchema,
@@ -187,6 +187,27 @@ export async function buildServer(core: AgentPassCore, engine: SyncEngine, cfg: 
   );
   app.post("/sync/connect/webdav", async (req) => engine.connectWebDav(parse(webdavCfg, req.body)));
   app.post("/sync/connect/s3", async (req) => engine.connectS3(parse(s3Cfg, req.body)));
+  // ---- encrypted backup / restore (E2E, offline) ----
+  app.post("/export", async (req) => {
+    const { passphrase } = parse<{ passphrase: string }>(z.object({ passphrase: z.string().min(1) }), req.body);
+    const bundle = await core.exportBundle();
+    return { blob: encryptPayload(JSON.stringify(bundle), passphrase) };
+  });
+  app.post("/import", async (req) => {
+    const { passphrase, blob } = parse<{ passphrase: string; blob: string }>(
+      z.object({ passphrase: z.string().min(1), blob: z.string().min(1) }),
+      req.body,
+    );
+    let bundle;
+    try {
+      bundle = JSON.parse(decryptPayload(blob, passphrase));
+    } catch {
+      throw new AppError("bad_request", "decrypt failed — wrong passphrase or corrupt backup", 400);
+    }
+    await core.applyBundle(bundle);
+    return { ok: true, stats: core.stats() };
+  });
+
   app.post("/sync/disconnect", async () => engine.disconnect());
   app.post("/sync/run", async () => engine.run());
   app.get("/sync/versions", async () => ({ versions: await engine.listVersions() }));
