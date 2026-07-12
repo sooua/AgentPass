@@ -54,4 +54,6 @@ export const api = {
   syncConnect: (provider: string, cfg: unknown) => req("POST", `/sync/connect/${provider}`, cfg),
   syncDisconnect: () => req("POST", "/sync/disconnect"),
   syncRun: () => req("POST", "/sync/run"),
+  syncVersions: () => req("GET", "/sync/versions"),
+  syncRestore: (id: string) => req("POST", `/sync/restore/${id}`),
 };
