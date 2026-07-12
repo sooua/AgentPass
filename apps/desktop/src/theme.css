@@ -18,9 +18,11 @@
   --border-cream: #f0eee6;
   --border-warm: #e8e6dc;
   --ring-warm: #d1cfc5;
-  --serif: "Anthropic Serif", Georgia, serif;
-  --sans: "Anthropic Sans", system-ui, Arial, sans-serif;
-  --mono: "Anthropic Mono", ui-monospace, "SF Mono", monospace;
+  /* Anthropic Serif/Sans/Mono are proprietary; these bundled fonts are the
+     closest offline substitutes per the Claude design system. */
+  --serif: "Anthropic Serif", "Source Serif 4", Georgia, serif;
+  --sans: "Anthropic Sans", "Inter", system-ui, Arial, sans-serif;
+  --mono: "Anthropic Mono", "IBM Plex Mono", ui-monospace, "SF Mono", monospace;
 }
 
 /* Dark theme — warm-toned, per the Claude dark section palette. */
