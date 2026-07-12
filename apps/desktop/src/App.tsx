@@ -63,44 +63,46 @@ export default function App() {
   const [page, setPage] = useState<Page>("targets");
   const { t } = usePrefs();
   return (
-    <div className="app">
-      {/* Window controls float in the top-right corner (no titlebar). */}
-      <div className="win-controls">
-        <button
-          className={`icon-btn ${page === "settings" ? "on" : ""}`}
-          aria-label={t("nav.settings")}
-          title={t("nav.settings")}
-          onClick={() => setPage("settings")}
-        >
-          <GearIcon />
-        </button>
-        <WindowButtons />
-      </div>
-      <aside className="sidebar">
-        {/* No titlebar — drag the window by the brand area. */}
-        <div className="brand" data-tauri-drag-region>
-          <span className="brand-row" data-tauri-drag-region>
-            <img src="logo.svg" width={28} height={28} alt="" data-tauri-drag-region />
-            agentpass
-          </span>
+    <div className="root-col">
+      {/* Top bar: brand on the left, window controls on the right — one row. */}
+      <div className="topbar">
+        <div className="topbar-brand" data-tauri-drag-region>
+          <img src="logo.svg" width={22} height={22} alt="" data-tauri-drag-region />
+          <span data-tauri-drag-region>agentpass</span>
           <small data-tauri-drag-region>{t("brand.sub")}</small>
         </div>
-        {PAGES.map((p) => (
-          <div key={p.id} className={`navlink ${page === p.id ? "active" : ""}`} onClick={() => setPage(p.id)}>
-            {t(p.key)}
-          </div>
-        ))}
-      </aside>
-      <main className="main">
-        {page === "targets" && <Targets />}
-        {page === "credentials" && <Credentials />}
-        {page === "reveals" && <Reveals />}
-        {page === "checkouts" && <Checkouts />}
-        {page === "rotation" && <Rotation />}
-        {page === "requests" && <Requests />}
-        {page === "audit" && <Audit />}
-        {page === "settings" && <Settings />}
-      </main>
+        <div className="topbar-drag" data-tauri-drag-region />
+        <div className="topbar-controls">
+          <button
+            className={`icon-btn ${page === "settings" ? "on" : ""}`}
+            aria-label={t("nav.settings")}
+            title={t("nav.settings")}
+            onClick={() => setPage("settings")}
+          >
+            <GearIcon />
+          </button>
+          <WindowButtons />
+        </div>
+      </div>
+      <div className="app">
+        <aside className="sidebar">
+          {PAGES.map((p) => (
+            <div key={p.id} className={`navlink ${page === p.id ? "active" : ""}`} onClick={() => setPage(p.id)}>
+              {t(p.key)}
+            </div>
+          ))}
+        </aside>
+        <main className="main">
+          {page === "targets" && <Targets />}
+          {page === "credentials" && <Credentials />}
+          {page === "reveals" && <Reveals />}
+          {page === "checkouts" && <Checkouts />}
+          {page === "rotation" && <Rotation />}
+          {page === "requests" && <Requests />}
+          {page === "audit" && <Audit />}
+          {page === "settings" && <Settings />}
+        </main>
+      </div>
     </div>
   );
 }
