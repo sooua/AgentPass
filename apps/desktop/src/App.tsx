@@ -20,6 +20,29 @@ const Badge = ({ v }: { v: string }) => <span className={`badge badge-${v}`}>{v}
 const short = (s: string | null | undefined) => (s ? s.slice(0, 14) + "…" : "—");
 const time = (s: string | null) => (s ? new Date(s).toLocaleString() : "—");
 
+// Debounce a value (filter inputs) so typing doesn't fire a request per keystroke.
+function useDebounced<T>(value: T, ms = 300): T {
+  const [v, setV] = useState(value);
+  useEffect(() => {
+    const id = setTimeout(() => setV(value), ms);
+    return () => clearTimeout(id);
+  }, [value, ms]);
+  return v;
+}
+
+// Clipboard copy that never throws (Tauri webview / insecure context may block it).
+function useCopy(): { state: "" | "ok" | "fail"; copy: (text: string) => void } {
+  const [state, setState] = useState<"" | "ok" | "fail">("");
+  const copy = (text: string) => {
+    Promise.resolve()
+      .then(() => navigator.clipboard?.writeText(text))
+      .then(() => setState("ok"))
+      .catch(() => setState("fail"))
+      .finally(() => setTimeout(() => setState(""), 1800));
+  };
+  return { state, copy };
+}
+
 // Re-runs fn when any dep changes; reload() forces a refetch (refresh button / after mutations).
 function useList(fn: () => Promise<any>, deps: unknown[] = []): { data: any; err: string; reload: () => void } {
   const [data, setData] = useState<any>(null);
@@ -211,7 +234,8 @@ function Targets() {
   const { t } = usePrefs();
   const [q, setQ] = useState("");
   const [env, setEnv] = useState("");
-  const { data, err, reload } = useList(() => api.targets({ q: q || undefined, environment: env || undefined }), [q, env]);
+  const dq = useDebounced(q);
+  const { data, err, reload } = useList(() => api.targets({ q: dq || undefined, environment: env || undefined }), [dq, env]);
   const creds = useList(() => api.credentials(), []);
   const [form, setForm] = useState({ name: "", type: "ssh", host: "", port: 22, username: "", environment: "dev", tags: "", credential_ids: [] as string[] });
   const [fErr, setFErr] = useState("");
@@ -352,7 +376,8 @@ function Credentials() {
   const { t } = usePrefs();
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("");
-  const { data, err, reload } = useList(() => api.credentials({ q: q || undefined, status: status || undefined }), [q, status]);
+  const dq = useDebounced(q);
+  const { data, err, reload } = useList(() => api.credentials({ q: dq || undefined, status: status || undefined }), [dq, status]);
   const [form, setForm] = useState({ name: "", type: "password", secret_value: "", metadata: "" });
   const [fErr, setFErr] = useState("");
   const [revealCred, setRevealCred] = useState<any>(null);
@@ -434,7 +459,7 @@ function RevealModal({ cred, onClose }: { cred: any; onClose: () => void }) {
   const [result, setResult] = useState<any>(null);
   const [err, setErr] = useState("");
   const [pending, setPending] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const { state: copyState, copy } = useCopy();
   const [left, setLeft] = useState(60);
 
   // Auto-clear the plaintext from the UI after 60s.
@@ -455,8 +480,6 @@ function RevealModal({ cred, onClose }: { cred: any; onClose: () => void }) {
       else setErr(e.message);
     }
   };
-  const copy = async () => { await navigator.clipboard.writeText(result.secret_value); setCopied(true); setTimeout(() => setCopied(false), 1500); };
-
   return (
     <div className="overlay" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
@@ -483,8 +506,8 @@ function RevealModal({ cred, onClose }: { cred: any; onClose: () => void }) {
             <label>{t("reveal.value")}</label>
             <div className="secret-box">{result.secret_value}</div>
             <div className="toolbar" style={{ marginTop: 8 }}>
-              <button className="btn btn-sm" onClick={copy}>{copied ? t("common.copied") : t("common.copy")}</button>
-              <span className="muted">{t("reveal.autoclear")} {left}s</span>
+              <button className="btn btn-sm" onClick={() => copy(result.secret_value)}>{copyState === "ok" ? t("common.copied") : t("common.copy")}</button>
+              <span className="muted">{copyState === "fail" ? t("common.copyFailed") : `${t("reveal.autoclear")} ${left}s`}</span>
             </div>
             {result.rotation_required && (
               <div className="risk risk-high">{t("reveal.rotationReq")} {time(result.rotate_before)}. {t("reveal.job")}: <span className="mono">{short(result.rotation_job_id)}</span></div>
@@ -504,13 +527,12 @@ function CheckoutModal({ target, onClose }: { target: any; onClose: () => void }
   const [purpose, setPurpose] = useState("");
   const [result, setResult] = useState<any>(null);
   const [err, setErr] = useState("");
-  const [copied, setCopied] = useState(false);
+  const { state: copyState, copy } = useCopy();
   const go = async () => {
     setErr("");
     try { setResult(await api.checkout(target.id, { purpose, requested_by: "desktop-ui", ttl_seconds: 900, mode: "temp_key_file" })); }
     catch (e: any) { setErr(e.message); }
   };
-  const copy = async () => { await navigator.clipboard.writeText(result.ssh_command); setCopied(true); setTimeout(() => setCopied(false), 1500); };
   return (
     <div className="overlay" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
@@ -532,8 +554,8 @@ function CheckoutModal({ target, onClose }: { target: any; onClose: () => void }
             <label>{t("checkout.command")}</label>
             <div className="secret-box">{result.ssh_command}</div>
             <div className="toolbar" style={{ marginTop: 8 }}>
-              <button className="btn btn-sm" onClick={copy}>{copied ? t("common.copied") : t("common.copy")}</button>
-              <span className="muted">{t("checkout.meta")} {short(result.checkout_id)} · {t("common.expires")} {time(result.expires_at)}</span>
+              <button className="btn btn-sm" onClick={() => copy(result.ssh_command)}>{copyState === "ok" ? t("common.copied") : t("common.copy")}</button>
+              <span className="muted">{copyState === "fail" ? t("common.copyFailed") : `${t("checkout.meta")} ${short(result.checkout_id)} · ${t("common.expires")} ${time(result.expires_at)}`}</span>
             </div>
             <div style={{ marginTop: 16 }}><button className="btn" onClick={onClose}>{t("common.done")}</button></div>
           </>

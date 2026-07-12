@@ -23,12 +23,15 @@ export const isPast = (iso: string, ref: string = nowIso()): boolean =>
  * strip inheritance and grant only the current user (chmod alone is a no-op on
  * Windows, leaving inherited ACLs that other local users may read). Best-effort.
  */
-export function secureLocalFile(path: string, mode = 0o600): void {
+export function secureLocalFile(path: string, mode = 0o600, opts?: { windowsAcl?: boolean }): void {
   try {
     chmodSync(path, mode);
   } catch {
     /* non-POSIX */
   }
+  // On Windows, locking a parent dir (inheritance:r + grant user) makes children
+  // inherit the ACL, so hot paths can skip the per-file icacls spawn.
+  if (opts?.windowsAcl === false) return;
   if (process.platform === "win32") {
     const user = process.env.USERNAME;
     if (!user) return;

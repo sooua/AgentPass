@@ -1,4 +1,4 @@
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { secureLocalFile } from "@agentpass/shared";
 import type {
@@ -20,7 +20,12 @@ const aliasFor = (t: Target): string =>
 export class TempKeyFileCheckoutProvider implements CheckoutProvider {
   readonly mode = "temp_key_file" as const;
 
-  constructor(private readonly baseDir: string) {}
+  constructor(private readonly baseDir: string) {
+    // Lock the base dir ONCE (full ACL). Per-checkout files inherit it on Windows,
+    // so create() skips the expensive per-file icacls spawn (E1).
+    if (!existsSync(this.baseDir)) mkdirSync(this.baseDir, { recursive: true });
+    secureLocalFile(this.baseDir, 0o700);
+  }
 
   supports(target: Target, credential: Credential): boolean {
     return target.type === "ssh" && (credential.type === "ssh_private_key" || credential.type === "password");
@@ -29,7 +34,7 @@ export class TempKeyFileCheckoutProvider implements CheckoutProvider {
   async create(input: CheckoutCreateInput): Promise<CheckoutArtifact> {
     const dir = join(this.baseDir, input.checkout_id);
     mkdirSync(dir, { recursive: true });
-    secureLocalFile(dir, 0o700);
+    secureLocalFile(dir, 0o700, { windowsAcl: false });
     const alias = aliasFor(input.target);
     const configPath = join(dir, "config");
     const common = [
@@ -46,7 +51,7 @@ export class TempKeyFileCheckoutProvider implements CheckoutProvider {
       // and drive the system ssh client via sshpass. Requires `sshpass` installed.
       const pwPath = join(dir, "password");
       writeFileSync(pwPath, input.secret_value, { mode: 0o600 });
-      secureLocalFile(pwPath);
+      secureLocalFile(pwPath, 0o600, { windowsAcl: false });
       const config = [...common, `    PreferredAuthentications password`, `    PubkeyAuthentication no`, ""].join("\n");
       writeFileSync(configPath, config, { mode: 0o600 });
       return { checkout_path: dir, ssh_command: `sshpass -f ${pwPath} ssh -F ${configPath} ${alias}` };
@@ -55,7 +60,7 @@ export class TempKeyFileCheckoutProvider implements CheckoutProvider {
     const keyPath = join(dir, "id_key");
     const key = input.secret_value.endsWith("\n") ? input.secret_value : input.secret_value + "\n";
     writeFileSync(keyPath, key, { mode: 0o600 });
-    secureLocalFile(keyPath); // 0600 + Windows ACL
+    secureLocalFile(keyPath, 0o600, { windowsAcl: false }); // inherits baseDir ACL on Windows
     const config = [...common, `    IdentityFile ${keyPath}`, `    IdentitiesOnly yes`, ""].join("\n");
     writeFileSync(configPath, config, { mode: 0o600 });
     return { checkout_path: dir, ssh_command: `ssh -F ${configPath} ${alias}` };
