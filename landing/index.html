@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AgentPass — scoped, audited access for AI agents</title>
+<meta name="description" content="A local credential manager that gives AI agents scoped, audited, expiring access to your servers — instead of pasting long-term secrets into a chat." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --parchment: #f5f4ed;
+    --ivory: #faf9f5;
+    --white: #ffffff;
+    --sand: #e8e6dc;
+    --near-black: #141413;
+    --dark-surface: #30302e;
+    --terracotta: #c96442;
+    --coral: #d97757;
+    --crimson: #b53333;
+    --focus-blue: #3898ec;
+    --charcoal: #4d4c48;
+    --olive: #5e5d59;
+    --stone: #87867f;
+    --warm-silver: #b0aea5;
+    --border-cream: #f0eee6;
+    --border-warm: #e8e6dc;
+    --ring-warm: #d1cfc5;
+    --serif: "Newsreader", Georgia, "Songti SC", "Source Han Serif SC", "Noto Serif SC", serif;
+    --sans: "Inter", system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+    --mono: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--parchment);
+    color: var(--near-black);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  h1, h2, h3, h4 { font-family: var(--serif); font-weight: 500; line-height: 1.15; }
+  a { color: inherit; text-decoration: none; }
+  code { font-family: var(--mono); font-size: 0.92em; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+  section { padding: 96px 0; }
+
+  /* ---- buttons ---- */
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-family: var(--sans); font-size: 15px; font-weight: 500;
+    padding: 11px 20px; border-radius: 12px; cursor: pointer; border: none;
+    transition: background .15s, box-shadow .15s, transform .15s;
+  }
+  .btn-primary { background: var(--terracotta); color: var(--ivory); box-shadow: 0 0 0 1px var(--terracotta); }
+  .btn-primary:hover { background: var(--coral); box-shadow: 0 0 0 1px var(--coral); }
+  .btn-ghost { background: var(--sand); color: var(--charcoal); box-shadow: 0 0 0 1px var(--ring-warm); }
+  .btn-ghost:hover { box-shadow: 0 0 0 1px var(--stone); }
+  .btn-dark { background: var(--near-black); color: var(--warm-silver); box-shadow: 0 0 0 1px var(--dark-surface); }
+  .btn-dark:hover { background: var(--dark-surface); color: var(--ivory); }
+  .lang-btn { padding: 8px 12px; font-size: 14px; min-width: 54px; justify-content: center; }
+
+  /* ---- nav ---- */
+  header {
+    position: sticky; top: 0; z-index: 50;
+    background: rgba(245,244,237,0.82); backdrop-filter: saturate(150%) blur(10px);
+    border-bottom: 1px solid var(--border-cream);
+  }
+  .nav { display: flex; align-items: center; justify-content: space-between; height: 64px; }
+  .brand { display: flex; align-items: center; gap: 11px; }
+  .brand .mark { width: 30px; height: 30px; border-radius: 9px; display: block; }
+  .brand .name { font-family: var(--serif); font-size: 21px; font-weight: 500; }
+  .nav-links { display: flex; align-items: center; gap: 30px; }
+  .nav-links a { color: var(--olive); font-size: 15px; font-weight: 500; transition: color .15s; }
+  .nav-links a:hover { color: var(--near-black); }
+  .nav-cta { display: flex; align-items: center; gap: 10px; }
+
+  /* ---- hero ---- */
+  .hero { padding-top: 76px; padding-bottom: 40px; }
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 13px; font-weight: 500; color: var(--olive);
+    background: var(--ivory); border: 1px solid var(--border-warm);
+    padding: 6px 14px; border-radius: 24px; margin-bottom: 26px;
+  }
+  .eyebrow .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--terracotta); }
+  .hero h1 { font-size: 64px; line-height: 1.08; letter-spacing: -0.5px; max-width: 15ch; }
+  .hero .lede {
+    font-size: 20px; line-height: 1.6; color: var(--olive);
+    max-width: 56ch; margin: 26px 0 34px;
+  }
+  .hero-cta { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+  .hero-note { font-size: 13px; color: var(--stone); margin-top: 18px; }
+
+  /* ---- terminal mock ---- */
+  .terminal {
+    margin-top: 56px; border-radius: 20px; overflow: hidden;
+    background: var(--near-black); box-shadow: rgba(0,0,0,0.10) 0px 24px 60px;
+    border: 1px solid var(--dark-surface);
+  }
+  .term-bar { display: flex; align-items: center; gap: 8px; padding: 14px 18px; border-bottom: 1px solid var(--dark-surface); }
+  .term-bar .tdot { width: 11px; height: 11px; border-radius: 50%; }
+  .term-title { margin-left: 10px; font-family: var(--mono); font-size: 12px; color: var(--stone); }
+  .term-body { padding: 22px 24px; font-family: var(--mono); font-size: 14px; line-height: 1.85; color: var(--warm-silver); overflow-x: auto; white-space: pre-wrap; }
+  .term-body .c-prompt { color: var(--terracotta); }
+  .term-body .c-key { color: var(--coral); }
+  .term-body .c-str { color: #a7c080; }
+  .term-body .c-mut { color: var(--stone); }
+
+  /* ---- section heads ---- */
+  .sec-head { max-width: 46ch; margin-bottom: 52px; }
+  .sec-head .kicker { font-size: 13px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--terracotta); margin-bottom: 14px; }
+  .sec-head h2 { font-size: 46px; line-height: 1.14; letter-spacing: -0.4px; }
+  .sec-head p { font-size: 18px; color: var(--olive); margin-top: 16px; }
+
+  /* ---- feature grid ---- */
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  .card {
+    background: var(--ivory); border: 1px solid var(--border-cream);
+    border-radius: 16px; padding: 28px;
+    box-shadow: rgba(0,0,0,0.05) 0px 4px 24px;
+    transition: transform .18s, box-shadow .18s;
+  }
+  .card:hover { transform: translateY(-3px); box-shadow: rgba(0,0,0,0.08) 0px 12px 34px; }
+  .card .ic {
+    width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center;
+    background: var(--sand); color: var(--terracotta); margin-bottom: 20px;
+  }
+  .card h3 { font-size: 23px; margin-bottom: 10px; }
+  .card p { font-size: 15px; color: var(--olive); line-height: 1.6; }
+  .card .tag { display: inline-block; margin-top: 14px; font-size: 12px; font-weight: 500; letter-spacing: 0.04em; color: var(--stone); background: var(--parchment); border: 1px solid var(--border-warm); padding: 3px 10px; border-radius: 20px; }
+
+  /* ---- dark section ---- */
+  .dark { background: var(--near-black); color: var(--warm-silver); }
+  .dark .kicker { color: var(--coral); }
+  .sec-lead { display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: start; }
+  .sec-lead .kicker { font-size: 13px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--coral); margin-bottom: 14px; }
+  .sec-lead h2 { font-size: 46px; line-height: 1.14; color: var(--ivory); letter-spacing: -0.4px; }
+  .sec-lead .lead-p { color: var(--warm-silver); font-size: 18px; margin-top: 16px; line-height: 1.6; }
+  .slist { display: flex; flex-direction: column; gap: 22px; }
+  .srow { display: flex; gap: 16px; padding-bottom: 22px; border-bottom: 1px solid var(--dark-surface); }
+  .srow:last-child { border-bottom: none; padding-bottom: 0; }
+  .srow .sk { flex-shrink: 0; width: 30px; height: 30px; border-radius: 8px; background: var(--dark-surface); color: var(--coral); display: flex; align-items: center; justify-content: center; }
+  .srow h4 { font-family: var(--sans); font-size: 16px; font-weight: 600; color: var(--ivory); margin-bottom: 4px; }
+  .srow p { font-size: 14.5px; color: var(--warm-silver); line-height: 1.55; }
+
+  /* ---- flow ---- */
+  .flow { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; counter-reset: step; }
+  .step { position: relative; padding: 30px 26px; background: var(--ivory); border: 1px solid var(--border-cream); border-radius: 16px; }
+  .step::before { counter-increment: step; content: "0" counter(step); font-family: var(--serif); font-size: 15px; color: var(--terracotta); font-weight: 500; }
+  .step h3 { font-size: 21px; margin: 12px 0 8px; }
+  .step p { font-size: 15px; color: var(--olive); }
+
+  /* ---- install ---- */
+  .install { text-align: center; }
+  .os-row { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; margin-top: 40px; }
+  .os {
+    display: flex; flex-direction: column; align-items: center; gap: 10px;
+    background: var(--ivory); border: 1px solid var(--border-warm); border-radius: 16px;
+    padding: 28px 40px; min-width: 200px;
+    box-shadow: rgba(0,0,0,0.05) 0px 4px 24px;
+  }
+  .os .osname { font-family: var(--serif); font-size: 21px; }
+  .os .fmt { font-family: var(--mono); font-size: 13px; color: var(--stone); }
+
+  /* ---- cta band ---- */
+  .band { text-align: center; }
+  .band-inner { background: var(--near-black); border-radius: 32px; padding: 80px 40px; }
+  .band h2 { font-size: 46px; color: var(--ivory); line-height: 1.14; letter-spacing: -0.4px; }
+  .band p { color: var(--warm-silver); font-size: 18px; margin: 18px auto 34px; max-width: 50ch; }
+
+  /* ---- footer ---- */
+  footer { border-top: 1px solid var(--border-cream); padding: 44px 0; }
+  .foot { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; }
+  .foot .brand .name { font-size: 18px; }
+  .foot-links { display: flex; gap: 24px; }
+  .foot-links a { color: var(--olive); font-size: 14px; }
+  .foot-links a:hover { color: var(--near-black); }
+  .foot small { color: var(--stone); font-size: 13px; }
+
+  /* ---- product shots ---- */
+  .shot-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .shot { border-radius: 20px; overflow: hidden; border: 1px solid var(--border-warm); background: var(--ivory); box-shadow: rgba(0,0,0,0.08) 0px 14px 44px; margin: 0; transition: transform .18s; }
+  .shot:hover { transform: translateY(-3px); }
+  .shot img { width: 100%; display: block; }
+  .shot .cap { padding: 14px 18px; font-size: 14px; color: var(--olive); border-top: 1px solid var(--border-cream); }
+
+  /* ---- responsive ---- */
+  @media (max-width: 900px) {
+    .grid, .flow, .shot-grid { grid-template-columns: 1fr 1fr; }
+    .sec-lead { grid-template-columns: 1fr; gap: 36px; }
+    .hero h1 { font-size: 50px; }
+  }
+  @media (max-width: 640px) {
+    section { padding: 68px 0; }
+    .nav-links { display: none; }
+    .grid, .flow { grid-template-columns: 1fr; }
+    .hero { padding-top: 52px; }
+    .hero h1 { font-size: 38px; }
+    .hero .lede { font-size: 18px; }
+    .sec-head h2, .sec-lead h2, .band h2 { font-size: 34px; }
+    .band-inner { padding: 54px 24px; }
+  }
+</style>
+</head>
+<body data-lang="en">
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="mark" viewBox="0 0 96 96">
+    <rect width="96" height="96" rx="30" fill="#c96442"/>
+    <circle cx="48" cy="37" r="15" fill="#faf9f5"/>
+    <path d="M41 48 L55 48 L58 74 L38 74 Z" fill="#faf9f5"/>
+  </symbol>
+</svg>
+
+<header>
+  <div class="wrap nav">
+    <a class="brand" href="#top">
+      <svg class="mark"><use href="#mark"/></svg>
+      <span class="name">AgentPass</span>
+    </a>
+    <nav class="nav-links">
+      <a href="#features" data-i18n="nav.features">Features</a>
+      <a href="#security" data-i18n="nav.security">Security</a>
+      <a href="#how" data-i18n="nav.how">How it works</a>
+      <a href="#install" data-i18n="nav.install">Install</a>
+    </nav>
+    <div class="nav-cta">
+      <button class="btn btn-ghost lang-btn" id="langBtn" onclick="toggleLang()">中文</button>
+      <a class="btn btn-primary" href="#install" data-i18n="nav.download">Download</a>
+    </div>
+  </div>
+</header>
+
+<main id="top">
+
+  <!-- hero -->
+  <section class="hero">
+    <div class="wrap">
+      <span class="eyebrow"><span class="dot"></span><span data-i18n="hero.eyebrow">Local-first · MIT licensed</span></span>
+      <h1 data-i18n="hero.h1">Give your AI agents the keys — on a leash.</h1>
+      <p class="lede" data-i18n="hero.lede">
+        AgentPass is a local credential manager that hands AI agents like Claude Code and Codex
+        <strong>scoped, audited, expiring</strong> access to your servers — instead of pasting
+        long-term secrets into a chat. Runs entirely on your machine.
+      </p>
+      <div class="hero-cta">
+        <a class="btn btn-primary" href="#install" data-i18n="hero.cta1">Download for your OS</a>
+        <a class="btn btn-ghost" href="https://github.com/sooua/agentpass" target="_blank" rel="noopener" data-i18n="hero.cta2">Read the source</a>
+      </div>
+      <p class="hero-note" data-i18n="hero.note">Daemon + MCP bridge + desktop app · SQLite · AES-256-GCM · nothing leaves your host.</p>
+
+      <div class="terminal">
+        <div class="term-bar">
+          <span class="tdot" style="background:#e5484d"></span>
+          <span class="tdot" style="background:#e2b53d"></span>
+          <span class="tdot" style="background:#4a9d5b"></span>
+          <span class="term-title" data-i18n="term.title">agent · MCP session</span>
+        </div>
+        <div class="term-body"><span class="c-mut" data-i18n="term.l1"># agent asks for access — no secret ever touches the chat</span>
+<span class="c-prompt">agent&gt;</span> <span class="c-key">checkout_ssh_access</span>(target=<span class="c-str">"prod-db-01"</span>, purpose=<span class="c-str">"run migration"</span>)
+<span class="c-mut" data-i18n="term.l2">→ issued temporary key · expires in 15m · audited</span>
+  ssh -F <span class="c-str">~/.agentpass/checkouts/chk_049f…/config</span> prod-db-01
+
+<span class="c-prompt">agent&gt;</span> <span class="c-key">reveal_secret</span>(<span class="c-str">"stripe_live_key"</span>)
+<span class="c-mut" data-i18n="term.l3">→ blocked · policy requires approval · request created</span>
+  <span class="c-mut" data-i18n="term.l4">waiting on operator in Approvals…</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- product shots -->
+  <section id="app">
+    <div class="wrap">
+      <div class="sec-head" style="max-width:48ch;">
+        <div class="kicker" data-i18n="shots.kicker">Warm, quiet, native</div>
+        <h2 data-i18n="shots.h2">A desktop app that stays out of the way.</h2>
+        <p data-i18n="shots.p">Register servers, mint scoped tokens, approve reveals, and read the audit — in light or dark, English or 中文.</p>
+      </div>
+      <div class="shot-grid">
+        <figure class="shot"><img src="assets/dashboard.png" alt="AgentPass — targets" loading="lazy" /><figcaption class="cap" data-i18n="shots.cap1">Register servers and credentials — light theme.</figcaption></figure>
+        <figure class="shot"><img src="assets/rotation.png" alt="AgentPass — rotation" loading="lazy" /><figcaption class="cap" data-i18n="shots.cap3">Rotation jobs with full audit ids — dark theme.</figcaption></figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- features -->
+  <section id="features">
+    <div class="wrap">
+      <div class="sec-head">
+        <div class="kicker" data-i18n="feat.kicker">Least privilege, by default</div>
+        <h2 data-i18n="feat.h2">Access an agent can use, but never keep.</h2>
+        <p data-i18n="feat.p">Every capability is scoped, time-boxed, and written to an append-only audit log.</p>
+      </div>
+      <div class="grid">
+        <div class="card">
+          <div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+          <h3 data-i18n="f1.h">Checkout over reveal</h3>
+          <p data-i18n="f1.p">Hand the agent a temporary, expiring <code>ssh</code> command — no long-term key ever leaves the vault. Plaintext reveal stays available but is the high-risk path.</p>
+          <span class="tag" data-i18n="f1.t">temp_key_file</span>
+        </div>
+        <div class="card">
+          <div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/></svg></div>
+          <h3 data-i18n="f2.h">Scoped agent tokens</h3>
+          <p data-i18n="f2.p">Give each agent its own token — <strong>Standard</strong> for day-to-day work, or <strong>Root</strong> for full power. Scope is enforced before the request runs and attributed by identity.</p>
+          <span class="tag" data-i18n="f2.t">Standard · Root</span>
+        </div>
+        <div class="card">
+          <div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><path d="M12 3l7 4v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V7z"/></svg></div>
+          <h3 data-i18n="f3.h">Separation of duties</h3>
+          <p data-i18n="f3.p">When a credential's policy needs approval, the requester can <strong>never</strong> approve its own reveal. The approver must be a different identity — approve from the desktop while the agent runs on its scoped token.</p>
+          <span class="tag" data-i18n="f3.t">approval-gated</span>
+        </div>
+        <div class="card">
+          <div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg></div>
+          <h3 data-i18n="f4.h">Rotation</h3>
+          <p data-i18n="f4.p">Rotate after a reveal, after N reveals, or on a schedule — with an approval-aware manual flow and opt-in auto-rotation.</p>
+          <span class="tag" data-i18n="f4.t">policy-driven</span>
+        </div>
+        <div class="card">
+          <div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 10 10"/><path d="M12 6v6l4 2"/><path d="M16 2l4 4-4 4"/></svg></div>
+          <h3 data-i18n="f5.h">E2E-encrypted sync</h3>
+          <p data-i18n="f5.p">Cross-device sync over a local dir, GitHub Gist, WebDAV, or S3 — secrets are encrypted before they leave the host, with tombstone-based deletion and item-level merge.</p>
+          <span class="tag" data-i18n="f5.t">ciphertext only</span>
+        </div>
+        <div class="card">
+          <div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18"/><circle cx="7" cy="7" r="0.5" fill="currentColor"/></svg></div>
+          <h3 data-i18n="f6.h">Local by default</h3>
+          <p data-i18n="f6.p">SQLite storage, AES-256-GCM secret blobs, a <code>0600</code> master key, and OS-level file ACLs. No cloud account required — ever.</p>
+          <span class="tag" data-i18n="f6.t">on your machine</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- security (dark) -->
+  <section id="security" class="dark">
+    <div class="wrap">
+      <div class="sec-lead">
+        <div>
+          <div class="kicker" data-i18n="sec.kicker">Security model</div>
+          <h2 data-i18n="sec.h2">Built for the moment an agent goes off-script.</h2>
+          <p class="lead-p" data-i18n="sec.p">The threat model assumes the agent is capable and occasionally wrong. Every path is scoped, expiring, and logged — so a mistake is contained, not catastrophic.</p>
+        </div>
+        <div class="slist">
+          <div class="srow">
+            <div class="sk"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 4v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V7z"/></svg></div>
+            <div><h4 data-i18n="s1.h">Encrypted at rest</h4><p data-i18n="s1.p">AES-256-GCM secret blobs behind a 0600 master key with OS-level ACLs. Secrets never appear in listings, errors, or logs.</p></div>
+          </div>
+          <div class="srow">
+            <div class="sk"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v4l3 2"/><circle cx="12" cy="12" r="9"/></svg></div>
+            <div><h4 data-i18n="s2.h">Everything expires</h4><p data-i18n="s2.p">Checkouts and reveals are time-boxed; revoking a checkout wipes on-disk key artifacts immediately.</p></div>
+          </div>
+          <div class="srow">
+            <div class="sk"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v14H5.2L4 20z"/><path d="M8 9h8M8 13h5"/></svg></div>
+            <div><h4 data-i18n="s3.h">Append-only audit</h4><p data-i18n="s3.p">Every reveal, checkout, rotation, and approval is recorded — redacted, attributed by identity, newest first.</p></div>
+          </div>
+          <div class="srow">
+            <div class="sk"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12l2.5 2.5L16 9"/></svg></div>
+            <div><h4 data-i18n="s4.h">No self-approval</h4><p data-i18n="s4.p">An agent on a Standard token can request a gated reveal but can't approve it. Root — which can — is for humans, not agents.</p></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- how it works -->
+  <section id="how">
+    <div class="wrap">
+      <div class="sec-head">
+        <div class="kicker" data-i18n="how.kicker">Three steps</div>
+        <h2 data-i18n="how.h2">Wire it up once. Your agents just ask.</h2>
+      </div>
+      <div class="flow">
+        <div class="step">
+          <h3 data-i18n="h1.h">Run the daemon</h3>
+          <p data-i18n="h1.p">Start AgentPass on your machine. It stores targets and credentials locally and publishes a local endpoint for the MCP bridge.</p>
+        </div>
+        <div class="step">
+          <h3 data-i18n="h2.h">Point your agent at it</h3>
+          <p data-i18n="h2.p">Add the MCP server to Claude Code or Codex. Mint a scoped token from the desktop app and drop it in the agent's config.</p>
+        </div>
+        <div class="step">
+          <h3 data-i18n="h3.h">Agents check out access</h3>
+          <p data-i18n="h3.p">The agent calls <code>checkout_ssh_access</code> or a gated <code>reveal_secret</code>. You watch, approve, and audit — all from the desktop.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- install -->
+  <section id="install" class="install">
+    <div class="wrap">
+      <div class="sec-head" style="margin: 0 auto 8px; text-align:center;">
+        <div class="kicker" data-i18n="inst.kicker">Get AgentPass</div>
+        <h2 data-i18n="inst.h2">Download the desktop app.</h2>
+        <p style="margin-left:auto;margin-right:auto;" data-i18n="inst.p">Signed installers for every desktop OS. In-app updates ship through GitHub Releases.</p>
+      </div>
+      <div class="os-row">
+        <div class="os"><span class="osname">Windows</span><span class="fmt">.msi · .exe</span></div>
+        <div class="os"><span class="osname">macOS</span><span class="fmt">.dmg · universal</span></div>
+        <div class="os"><span class="osname">Linux</span><span class="fmt">.AppImage · .deb</span></div>
+      </div>
+      <div style="margin-top:36px;">
+        <a class="btn btn-primary" href="https://github.com/sooua/agentpass/releases" target="_blank" rel="noopener" data-i18n="inst.btn">All downloads on GitHub Releases</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- cta band -->
+  <section class="band">
+    <div class="wrap">
+      <div class="band-inner">
+        <h2 data-i18n="band.h2">Stop pasting secrets into chats.</h2>
+        <p data-i18n="band.p">Give your agents access they can use and you can revoke — with a full audit trail behind every request.</p>
+        <div style="display:flex; gap:12px; justify-content:center; flex-wrap:wrap;">
+          <a class="btn btn-primary" href="#install" data-i18n="band.cta1">Download AgentPass</a>
+          <a class="btn btn-dark" href="https://github.com/sooua/agentpass" target="_blank" rel="noopener" data-i18n="band.cta2">Star on GitHub</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="wrap foot">
+    <div class="brand">
+      <svg class="mark" style="width:26px;height:26px;border-radius:8px;"><use href="#mark"/></svg>
+      <span class="name">AgentPass</span>
+    </div>
+    <div class="foot-links">
+      <a href="https://github.com/sooua/agentpass" target="_blank" rel="noopener">GitHub</a>
+      <a href="#features" data-i18n="nav.features">Features</a>
+      <a href="#security" data-i18n="nav.security">Security</a>
+      <a href="#install" data-i18n="nav.download">Download</a>
+    </div>
+    <small data-i18n="foot.small">MIT licensed · Local-first · © 2026</small>
+  </div>
+</footer>
+
+<script>
+  const I18N = {
+    "nav.features": { en: "Features", zh: "功能" },
+    "nav.security": { en: "Security", zh: "安全" },
+    "nav.how": { en: "How it works", zh: "工作方式" },
+    "nav.install": { en: "Install", zh: "下载" },
+    "nav.download": { en: "Download", zh: "下载" },
+    "hero.eyebrow": { en: "Local-first · MIT licensed", zh: "本地优先 · MIT 许可" },
+    "hero.h1": { en: "Give your AI agents the keys — on a leash.", zh: "把钥匙交给 AI 智能体 —— 但拴着绳。" },
+    "hero.lede": {
+      en: "AgentPass is a local credential manager that hands AI agents like Claude Code and Codex <strong>scoped, audited, expiring</strong> access to your servers — instead of pasting long-term secrets into a chat. Runs entirely on your machine.",
+      zh: "AgentPass 是本地凭据管理器,给 Claude Code、Codex 这类 AI 智能体<strong>受限、可审计、会过期</strong>的服务器访问 —— 而不是把长期密钥贴进对话。全程只在你本机运行。"
+    },
+    "hero.cta1": { en: "Download for your OS", zh: "下载对应系统版本" },
+    "hero.cta2": { en: "Read the source", zh: "查看源码" },
+    "hero.note": { en: "Daemon + MCP bridge + desktop app · SQLite · AES-256-GCM · nothing leaves your host.", zh: "服务 + MCP 桥 + 桌面应用 · SQLite · AES-256-GCM · 数据不出本机。" },
+    "term.title": { en: "agent · MCP session", zh: "智能体 · MCP 会话" },
+    "term.l1": { en: "# agent asks for access — no secret ever touches the chat", zh: "# 智能体请求访问 —— 密钥从不进入对话" },
+    "term.l2": { en: "→ issued temporary key · expires in 15m · audited", zh: "→ 已签发临时密钥 · 15 分钟后过期 · 已审计" },
+    "term.l3": { en: "→ blocked · policy requires approval · request created", zh: "→ 已拦截 · 策略需审批 · 已创建请求" },
+    "term.l4": { en: "waiting on operator in Approvals…", zh: "等待审批页操作员处理…" },
+    "feat.kicker": { en: "Least privilege, by default", zh: "默认最小权限" },
+    "feat.h2": { en: "Access an agent can use, but never keep.", zh: "智能体能用、却带不走的访问。" },
+    "feat.p": { en: "Every capability is scoped, time-boxed, and written to an append-only audit log.", zh: "每项能力都受限、有时效,并写入只追加的审计日志。" },
+    "f1.h": { en: "Checkout over reveal", zh: "签出优先于暴露" },
+    "f1.p": { en: "Hand the agent a temporary, expiring <code>ssh</code> command — no long-term key ever leaves the vault. Plaintext reveal stays available but is the high-risk path.", zh: "给智能体一条临时、会过期的 <code>ssh</code> 命令 —— 长期密钥永不离开保险库。明文暴露仍可用,但属高风险路径。" },
+    "f1.t": { en: "temp_key_file", zh: "temp_key_file" },
+    "f2.h": { en: "Scoped agent tokens", zh: "受限智能体令牌" },
+    "f2.p": { en: "Give each agent its own token — <strong>Standard</strong> for day-to-day work, or <strong>Root</strong> for full power. Scope is enforced before the request runs and attributed by identity.", zh: "给每个智能体独立令牌 —— <strong>标准</strong>用于日常,或 <strong>Root</strong> 给完全权限。作用域在请求执行前强制,并按身份归因。" },
+    "f2.t": { en: "Standard · Root", zh: "标准 · Root" },
+    "f3.h": { en: "Separation of duties", zh: "职责分离" },
+    "f3.p": { en: "When a credential's policy needs approval, the requester can <strong>never</strong> approve its own reveal. The approver must be a different identity — approve from the desktop while the agent runs on its scoped token.", zh: "当凭据策略需审批时,申请者<strong>永远</strong>不能批准自己的暴露。审批者必须是另一身份 —— 从桌面审批,智能体则用受限令牌运行。" },
+    "f3.t": { en: "approval-gated", zh: "受审批约束" },
+    "f4.h": { en: "Rotation", zh: "轮换" },
+    "f4.p": { en: "Rotate after a reveal, after N reveals, or on a schedule — with an approval-aware manual flow and opt-in auto-rotation.", zh: "暴露后、N 次暴露后,或按计划轮换 —— 含审批感知的手动流程与可选自动轮换。" },
+    "f4.t": { en: "policy-driven", zh: "策略驱动" },
+    "f5.h": { en: "E2E-encrypted sync", zh: "端到端加密同步" },
+    "f5.p": { en: "Cross-device sync over a local dir, GitHub Gist, WebDAV, or S3 — secrets are encrypted before they leave the host, with tombstone-based deletion and item-level merge.", zh: "通过本地目录、GitHub Gist、WebDAV 或 S3 跨设备同步 —— 密钥离开本机前先加密,基于墓碑的删除传播与条目级合并。" },
+    "f5.t": { en: "ciphertext only", zh: "只传密文" },
+    "f6.h": { en: "Local by default", zh: "默认本地" },
+    "f6.p": { en: "SQLite storage, AES-256-GCM secret blobs, a <code>0600</code> master key, and OS-level file ACLs. No cloud account required — ever.", zh: "SQLite 存储、AES-256-GCM 密钥块、<code>0600</code> 主密钥、OS 级文件 ACL。永不需要云账号。" },
+    "f6.t": { en: "on your machine", zh: "只在你本机" },
+    "sec.kicker": { en: "Security model", zh: "安全模型" },
+    "sec.h2": { en: "Built for the moment an agent goes off-script.", zh: "为智能体「失控的那一刻」而设计。" },
+    "sec.p": { en: "The threat model assumes the agent is capable and occasionally wrong. Every path is scoped, expiring, and logged — so a mistake is contained, not catastrophic.", zh: "威胁模型假设智能体很能干、偶尔会错。每条路径都受限、会过期、被记录 —— 让失误被控制,而非酿成灾难。" },
+    "s1.h": { en: "Encrypted at rest", zh: "静态加密" },
+    "s1.p": { en: "AES-256-GCM secret blobs behind a 0600 master key with OS-level ACLs. Secrets never appear in listings, errors, or logs.", zh: "AES-256-GCM 密钥块 + 0600 主密钥 + OS 级 ACL。密钥不出现在列表、错误或日志中。" },
+    "s2.h": { en: "Everything expires", zh: "一切都会过期" },
+    "s2.p": { en: "Checkouts and reveals are time-boxed; revoking a checkout wipes on-disk key artifacts immediately.", zh: "签出和暴露都有时效;吊销签出会立即擦除落盘的密钥文件。" },
+    "s3.h": { en: "Append-only audit", zh: "只追加审计" },
+    "s3.p": { en: "Every reveal, checkout, rotation, and approval is recorded — redacted, attributed by identity, newest first.", zh: "每次暴露、签出、轮换、审批都被记录 —— 已脱敏、按身份归因、最新在前。" },
+    "s4.h": { en: "No self-approval", zh: "禁止自我审批" },
+    "s4.p": { en: "An agent on a Standard token can request a gated reveal but can't approve it. Root — which can — is for humans, not agents.", zh: "标准令牌的智能体可请求受审批暴露,但不能批准。能批准的 Root 是给人的,不是给智能体。" },
+    "how.kicker": { en: "Three steps", zh: "三步" },
+    "how.h2": { en: "Wire it up once. Your agents just ask.", zh: "接一次线,之后智能体只管请求。" },
+    "h1.h": { en: "Run the daemon", zh: "启动服务" },
+    "h1.p": { en: "Start AgentPass on your machine. It stores targets and credentials locally and publishes a local endpoint for the MCP bridge.", zh: "在你本机启动 AgentPass。它本地存储目标与凭据,并为 MCP 桥发布一个本地端点。" },
+    "h2.h": { en: "Point your agent at it", zh: "把智能体指向它" },
+    "h2.p": { en: "Add the MCP server to Claude Code or Codex. Mint a scoped token from the desktop app and drop it in the agent's config.", zh: "把 MCP 服务器加进 Claude Code 或 Codex。从桌面应用创建受限令牌,填进智能体配置。" },
+    "h3.h": { en: "Agents check out access", zh: "智能体签出访问" },
+    "h3.p": { en: "The agent calls <code>checkout_ssh_access</code> or a gated <code>reveal_secret</code>. You watch, approve, and audit — all from the desktop.", zh: "智能体调用 <code>checkout_ssh_access</code> 或受审批的 <code>reveal_secret</code>。你在桌面观察、审批、审计。" },
+    "inst.kicker": { en: "Get AgentPass", zh: "获取 AgentPass" },
+    "inst.h2": { en: "Download the desktop app.", zh: "下载桌面应用。" },
+    "inst.p": { en: "Signed installers for every desktop OS. In-app updates ship through GitHub Releases.", zh: "每个桌面系统都有签名安装包。应用内更新通过 GitHub Releases 推送。" },
+    "inst.btn": { en: "All downloads on GitHub Releases", zh: "全部下载见 GitHub Releases" },
+    "band.h2": { en: "Stop pasting secrets into chats.", zh: "别再把密钥贴进对话。" },
+    "band.p": { en: "Give your agents access they can use and you can revoke — with a full audit trail behind every request.", zh: "给智能体可用、你可吊销的访问 —— 每个请求背后都有完整审计。" },
+    "band.cta1": { en: "Download AgentPass", zh: "下载 AgentPass" },
+    "band.cta2": { en: "Star on GitHub", zh: "去 GitHub 点 Star" },
+    "foot.small": { en: "MIT licensed · Local-first · © 2026", zh: "MIT 许可 · 本地优先 · © 2026" },
+    "shots.kicker": { en: "Warm, quiet, native", zh: "温暖、克制、原生" },
+    "shots.h2": { en: "A desktop app that stays out of the way.", zh: "一个不打扰你的桌面应用。" },
+    "shots.p": { en: "Register servers, mint scoped tokens, approve reveals, and read the audit — in light or dark, English or 中文.", zh: "注册服务器、创建受限令牌、审批暴露、查看审计 —— 明暗主题、中英文皆可。" },
+    "shots.cap1": { en: "Register servers and credentials — light theme.", zh: "注册服务器与凭据 —— 浅色主题。" },
+    "shots.cap2": { en: "Standard / Root agent tokens, scoped by identity.", zh: "标准 / Root 智能体令牌,按身份限定作用域。" },
+    "shots.cap3": { en: "Rotation jobs with full audit ids — dark theme.", zh: "轮换任务含完整审计 ID —— 深色主题。" },
+    "shots.cap4": { en: "Every screen themed warm, in dark too.", zh: "每个页面都是暖色调,深色也不例外。" }
+  };
+
+  function setLang(l) {
+    document.documentElement.lang = l === "zh" ? "zh-CN" : "en";
+    document.body.dataset.lang = l;
+    document.querySelectorAll("[data-i18n]").forEach(function (el) {
+      var t = I18N[el.getAttribute("data-i18n")];
+      if (t && t[l] != null) el.innerHTML = t[l];
+    });
+    document.getElementById("langBtn").textContent = l === "en" ? "中文" : "EN";
+    try { localStorage.setItem("ap_lang", l); } catch (e) {}
+  }
+  function toggleLang() {
+    setLang(document.body.dataset.lang === "zh" ? "en" : "zh");
+  }
+  (function () {
+    var saved;
+    try { saved = localStorage.getItem("ap_lang"); } catch (e) {}
+    var initial = saved || ((navigator.language || "en").toLowerCase().indexOf("zh") === 0 ? "zh" : "en");
+    setLang(initial);
+  })();
+</script>
+
+</body>
+</html>

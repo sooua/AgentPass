@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="brand/lockup-horizontal.svg" alt="agentpass" width="380" />
+<img src="docs/assets/agentpass-lockup.png" alt="AgentPass" width="400" />
 
 ### Give your AI agents scoped, audited, expiring access to your servers — never a pasted secret.
 
@@ -15,15 +15,15 @@
 
 ---
 
-**agentpass** is a local-first credential manager built for the age of autonomous coding agents. Claude Code, Codex, and Cursor Agent can log into your servers through it — with a temporary key that expires, not a long-lived secret dumped into a chat log. Every access is scoped to what that agent may touch, attributed to its identity, and written to an append-only audit trail. Nothing leaves your machine.
+**AgentPass** is a local-first credential manager built for the age of autonomous coding agents. Claude Code, Codex, and Cursor Agent can log into your servers through it — with a temporary key that expires, not a long-lived secret dumped into a chat log. Every access is scoped to what that agent may touch, attributed to its identity, and written to an append-only audit trail. Nothing leaves your machine.
 
 <div align="center">
-<img src="docs/assets/dashboard.png" alt="agentpass desktop" width="820" />
+<img src="docs/assets/dashboard.png" alt="AgentPass desktop" width="820" />
 </div>
 
-## Why agentpass
+## Why AgentPass
 
-Handing an AI agent a raw SSH key or database password is a one-way door: the secret is now in a transcript, a shell history, a model's context. agentpass closes that door. The agent asks for *access*, gets a credential that dies on a timer, and never holds your long-term secret at all.
+Handing an AI agent a raw SSH key or database password is a one-way door: the secret is now in a transcript, a shell history, a model's context. AgentPass closes that door. The agent asks for *access*, gets a credential that dies on a timer, and never holds your long-term secret at all.
 
 - **Checkout, not reveal.** The default path issues a temporary, expiring `ssh` command. The private key is materialized locally for the session and wiped on expiry — the agent never receives it.
 - **Least privilege by identity.** Each agent carries a scoped token limited by capability, environment, and target. Overreach is rejected before the request runs, and the audit log names the token, not a self-reported string.
@@ -35,7 +35,7 @@ Handing an AI agent a raw SSH key or database password is a one-way door: the se
 | | |
 |---|---|
 | **🔑 Credential checkout** | Temporary, expiring SSH access via the system OpenSSH client. Long-term keys never leave the vault. |
-| **🎫 Scoped agent tokens** | Per-agent tokens bounded by capability × environment × target. One-click "recommended agent token" preset with full operational power and no admin rights. |
+| **🎫 Scoped agent tokens** | Per-agent tokens at two levels: **Standard** (reveal · checkout · list · rotate across all targets) or **Root** (adds `admin`). Scope is enforced before the handler and attributed by identity. |
 | **👁 Audited reveal** | Plaintext access when you truly need it — every call logged, secrets redacted, rotation triggered by policy. |
 | **✅ Approval with separation of duties** | Gate high-risk reveals behind human approval; a requester can never approve its own request. |
 | **♻️ Rotation** | Rotate after reveal, after N reveals, or on a schedule. Approval-aware manual flow; opt-in auto-rotation. |
@@ -46,14 +46,11 @@ Handing an AI agent a raw SSH key or database password is a one-way door: the se
 <div align="center">
 <table>
 <tr>
-<td width="50%"><img src="docs/assets/agent-tokens.png" alt="Scoped agent tokens" /><br/><sub><b>Scoped agent tokens</b> — bound an agent to exactly what it may do.</sub></td>
-<td width="50%"><img src="docs/assets/checkout.png" alt="SSH checkout" /><br/><sub><b>Checkout</b> — an expiring SSH command, no secret handed over.</sub></td>
-</tr>
-<tr>
-<td width="50%"><img src="docs/assets/approvals.png" alt="Reveal approvals" /><br/><sub><b>Approvals</b> — separation of duties on high-risk reveals.</sub></td>
-<td width="50%"><img src="docs/assets/sync.png" alt="Encrypted sync" /><br/><sub><b>Sync</b> — end-to-end encrypted across your devices.</sub></td>
+<td width="50%"><img src="docs/assets/agent-tokens.png" alt="Scoped agent tokens" /><br/><sub><b>Scoped agent tokens</b> — Standard or Root, enforced before the handler.</sub></td>
+<td width="50%"><img src="docs/assets/rotation.png" alt="Rotation jobs" /><br/><sub><b>Rotation</b> — after reveal, after N reveals, or on a schedule.</sub></td>
 </tr>
 </table>
+<sub>Warm light & dark themes · English & 中文 built in.</sub>
 </div>
 
 ## How it works
@@ -122,11 +119,11 @@ Then just ask:
 
 The agent finds the target, checks out an expiring SSH command, runs it, and the temporary key wipes itself on expiry — fully audited.
 
-> **Run agents on a scoped token, not root.** Mint a token with `reveal` · `checkout` · `list` · `rotate` and **no** `admin` (the one-click preset in the desktop app), and keep the root token for yourself. Full operational power, but the agent can't manage tokens or approve its own gated reveals. See [docs/security-model.md](docs/security-model.md).
+> **Run agents on a Standard token, not Root.** In the desktop app, mint a **Standard** token (reveal · checkout · list · rotate — no `admin`) and keep **Root** for yourself. Full operational power, but the agent can't manage tokens or approve its own gated reveals. See [docs/security-model.md](docs/security-model.md).
 
 ## Security model
 
-agentpass deliberately supports revealing plaintext to agents — that is a product capability, not an oversight — and surrounds it with controls: scoped tokens enforced before the handler, separation of duties on approvals, redacted audit logs, encryption at rest, and loopback-only binding. The full threat model, trust boundaries, and the one honest limitation (an agent holding root or `admin` can mint a second identity, so approval is only a real boundary for a no-admin agent) are documented in **[docs/security-model.md](docs/security-model.md)**.
+AgentPass deliberately supports revealing plaintext to agents — that is a product capability, not an oversight — and surrounds it with controls: scoped tokens enforced before the handler, separation of duties on approvals, redacted audit logs, encryption at rest, and loopback-only binding. The full threat model, trust boundaries, and the one honest limitation (an agent holding root or `admin` can mint a second identity, so approval is only a real boundary for a no-admin agent) are documented in **[docs/security-model.md](docs/security-model.md)**.
 
 ## Documentation
 
@@ -138,17 +135,16 @@ agentpass deliberately supports revealing plaintext to agents — that is a prod
 
 ## Status
 
-First stable release (`v1.0.0`). Auto-rotation ships disabled by default — scheduled and after-reveal jobs are created and left for manual completion until a gateway provider installs the new secret on the target. The `ssh_agent_socket` checkout mode is not yet implemented; `temp_key_file` is the default and only offered mode.
+Stable release (`v1.0.1`). Auto-rotation ships disabled by default — scheduled and after-reveal jobs are created and left for manual completion until a gateway provider installs the new secret on the target. The `ssh_agent_socket` checkout mode is not yet implemented; `temp_key_file` is the default and only offered mode.
 
 ## Brand
 
 <div align="center">
-<img src="brand/logo/agentpass-terracotta.svg" width="72" alt="terracotta" />&nbsp;&nbsp;&nbsp;
-<img src="brand/logo/agentpass-light.svg" width="72" alt="light" />&nbsp;&nbsp;&nbsp;
-<img src="brand/logo/agentpass-dark.svg" width="72" alt="dark" />
+<img src="docs/assets/agentpass-brand-board.png" alt="AgentPass brand — mark, wordmark, palette" width="720" />
 </div>
 
-Logo variants (terracotta / light / dark) and usage guidance in [`brand/logo/`](brand/logo/).
+The keyhole mark in three background-ready variants (terracotta / light / dark), the
+horizontal lockup, and the warm palette. Source SVGs and usage guidance in [`brand/logo/`](brand/logo/).
 
 ## License
 
