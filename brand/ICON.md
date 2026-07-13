@@ -1,4 +1,4 @@
-# agentpass — Brand & Icon
+# AgentPass — Brand & Icon
 
 The mark is a **keyhole plate**: a warm near-black rounded square holding a
 terracotta keyhole. Credential + access, in the Claude warm design language.
@@ -11,7 +11,7 @@ terracotta keyhole. Credential + access, in the Claude warm design language.
 | `logo-dark.svg` | Sand plate + terracotta keyhole. Dark (near-black) sections. |
 | `logo-mono.svg` | Single colour via `currentColor`. Set `color:` on the parent. Small sizes, print, one-colour contexts. |
 | `app-icon.svg` | 1024² full-bleed squircle. Source for OS app icons / Tauri. |
-| `lockup-horizontal.svg` | Mark + `agentpass` wordmark, side by side. |
+| `lockup-horizontal.svg` | Mark + `AgentPass` wordmark, side by side. |
 
 The app also ships `apps/desktop/public/logo.svg` (sidebar) and
 `apps/desktop/public/favicon.svg` (browser tab), both = primary.

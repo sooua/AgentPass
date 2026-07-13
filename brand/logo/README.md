@@ -1,4 +1,4 @@
-# agentpass logo — delivery package
+# AgentPass logo — delivery package
 
 The mark is a **keyhole plate**: a rounded square holding a keyhole (credential +
 access). Three background-ready variants, all built on the same geometry and the

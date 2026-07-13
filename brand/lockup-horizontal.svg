@@ -1,8 +1,8 @@
-<svg width="360" height="72" viewBox="0 0 360 72" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="agentpass">
+<svg width="360" height="72" viewBox="0 0 360 72" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="AgentPass">
   <g transform="translate(4,4) scale(0.667)">
     <rect width="96" height="96" rx="30" fill="#141413"/>
     <circle cx="48" cy="40" r="15" fill="#c96442"/>
     <path d="M41 51 L55 51 L58 78 L38 78 Z" fill="#c96442"/>
   </g>
-  <text x="80" y="50" font-family="Newsreader, Georgia, serif" font-size="40" font-weight="500" fill="#141413">agentpass</text>
+  <text x="80" y="50" font-family="Newsreader, Georgia, serif" font-size="40" font-weight="500" fill="#141413">AgentPass</text>
 </svg>
