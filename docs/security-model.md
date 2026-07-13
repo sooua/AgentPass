@@ -36,6 +36,50 @@ explicit, audited, and rotation-aware.
 - The token is generated on first run and stored at `~/.agentpass/token` (0600).
   Override with `AGENTPASS_TOKEN`.
 
+## Scoped agent tokens (B3)
+
+The root token above is **all-powerful**. To limit an individual agent's blast
+radius, mint additional **scoped tokens** that layer on top of it — the root
+token is unchanged and always full-power (back-compat).
+
+A scoped token (`AgentToken`) binds a human-named agent to a scope:
+
+- **capabilities** — any of `reveal` · `checkout` · `list` · `rotate` · `admin`
+  (`admin` = manage tokens + create/update/delete targets & credentials).
+- **environments** — whitelist of `dev|staging|prod`; empty = all.
+- **target_tags** / **target_ids** — whitelist of targets; both empty = all.
+- **expires_at** — optional ISO TTL.
+
+Authorization is enforced **at the API boundary** (`apps/daemon/src/server.ts`),
+not deep in business logic:
+
+1. The `onRequest` hook resolves the bearer token. Root token → full pass. Else
+   it looks the token up by **sha256 hash** (plaintext is never stored — only
+   returned once at creation), rejecting unknown/revoked/expired tokens with
+   `401`.
+2. Each route declares a required capability (`ROUTE_CAP`). Unlisted routes
+   default to `admin` — deny-by-default, safe because only opt-in scoped tokens
+   are constrained. A capability miss returns
+   `403 {code:"forbidden", message:"token not allowed to <cap> <env>"}`.
+3. `reveal`/`checkout` additionally check the **target's** environment and tags
+   against the token's whitelist. An env-restricted token must pass a `target_id`
+   on reveal so the environment can actually be verified.
+
+**Audit attribution** no longer trusts the self-reported `requested_by`: reveal
+and checkout record the **token's bound agent name** as the audit `actor` (root =
+`"root"`). `requested_by` is retained as caller-supplied context only.
+
+Tokens are **device-local** (like `secret_ref`s and the master key) and are
+**not** synced — the hash is local auth material. Manage them in the desktop app
+(**Settings → Agent tokens**) or via `POST /agent-tokens`, `GET /agent-tokens`
+(metadata only, never the hash), `POST /agent-tokens/:id/revoke`.
+
+> Unlike the approval gate below, this **is** an enforcement boundary: a scoped
+> token physically cannot exceed its capabilities/environments/targets, because
+> the check runs before the handler and rejects the request. It does not yet
+> solve independent approval (see below) — an `admin` scoped token can still
+> self-approve — but a non-`admin` agent token cannot approve at all.
+
 ## Master key
 
 - 32-byte key at `~/.agentpass/master.key` (0600), created on first run.
@@ -72,8 +116,9 @@ best-effort and logged nowhere.
 
 ## Threat notes / non-goals (MVP)
 
-- No multi-user auth or RBAC yet. `approval_required` gives a single-operator
-  approval gate, not a role model.
+- No multi-user auth yet. Scoped agent tokens (B3) give per-agent capability +
+  environment + target authorization — a capability model, not user identities.
+  `approval_required` remains a single-operator gate, not a role model.
 - Windows file permissions: `0600`/`0700` are best-effort; on Windows the ACL
   model differs. Treat `~/.agentpass` as a protected directory.
 - No network egress except the local daemon. No telemetry.

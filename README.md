@@ -119,6 +119,29 @@ Gotchas: `checkout_ssh_access` needs the target to have a linked
 password checkout returns an `sshpass`-based command (install `sshpass`); if the
 daemon is down the tools return a clear "daemon unreachable — start it" error.
 
+**Scoped tokens (limit an agent's blast radius).** By default an agent uses the
+full-power root token (`~/.agentpass/token`). To give a *specific* agent only
+part of the surface, mint a **scoped token** and hand it to that agent via
+`AGENTPASS_TOKEN` in its MCP `env` (overrides the root token for that process):
+
+```bash
+TOKEN=$(cat ~/.agentpass/token); H="Authorization: Bearer $TOKEN"; U=http://127.0.0.1:17470
+# a token that may only check out / list, only in dev, only on #web targets:
+curl -s -XPOST $U/agent-tokens -H "$H" -H 'content-type: application/json' -d '{
+  "name":"claude-dev","capabilities":["checkout","list"],
+  "environments":["dev"],"target_tags":["web"]
+}' | jq -r .token        # apat_… — shown ONCE, store it now
+```
+Then in `.mcp.json` set `"env": { "AGENTPASS_URL": "…", "AGENTPASS_TOKEN": "apat_…" }`.
+That agent now gets **403 forbidden** if it tries `reveal_secret`, touches a
+`prod` target, or manages tokens — and every audit entry is attributed to
+`claude-dev`, not a self-reported name. Capabilities: `reveal` · `checkout` ·
+`list` · `rotate` · `admin` (token management + CRUD). Empty `environments` /
+`target_tags` / `target_ids` = no restriction. Optional `expires_at` (ISO) for a
+TTL. Create/list/revoke in the desktop app's **Settings → Agent tokens**, or via
+`GET /agent-tokens` and `POST /agent-tokens/:id/revoke`. See
+[docs/security-model.md](docs/security-model.md#scoped-agent-tokens-b3).
+
 ## Demo flow (matches acceptance criteria)
 ```bash
 TOKEN=$(cat ~/.agentpass/token); H="Authorization: Bearer $TOKEN"; U=http://127.0.0.1:4747
