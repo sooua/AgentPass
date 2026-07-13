@@ -29,3 +29,6 @@ export const conflict = (message: string) =>
 
 export const notSupported = (message: string) =>
   new AppError("not_supported", message, 501);
+
+export const forbidden = (message: string) =>
+  new AppError("forbidden", message, 403);

@@ -3,6 +3,7 @@ import { createRequire } from "node:module";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import type {
+  AgentToken,
   AuditLog,
   CheckoutSession,
   Credential,
@@ -26,6 +27,7 @@ const ENTITY_TABLES = [
   "checkouts",
   "rotation_policies",
   "rotation_jobs",
+  "agent_tokens",
 ] as const;
 
 // node:sqlite is a newer builtin; load via require so bundlers (Vite/vitest)
@@ -249,6 +251,23 @@ export class SqliteStore implements Repository, SecretBlobStore {
   }
   updateRotationJob(id: string, patch: Partial<RotationJob>): RotationJob | null {
     return this.patchRow<RotationJob>("rotation_jobs", id, patch);
+  }
+
+  // ---- agent tokens (scoped per-agent auth) ----
+  createAgentToken(t: AgentToken): void {
+    this.insert("agent_tokens", t);
+  }
+  getAgentToken(id: string): AgentToken | null {
+    return this.getRow<AgentToken>("agent_tokens", id);
+  }
+  listAgentTokens(): AgentToken[] {
+    return this.allRows<AgentToken>("agent_tokens");
+  }
+  updateAgentToken(id: string, patch: Partial<AgentToken>): AgentToken | null {
+    return this.patchRow<AgentToken>("agent_tokens", id, patch);
+  }
+  deleteAgentToken(id: string): boolean {
+    return this.del("agent_tokens", id);
   }
 
   // ---- audit (append-only, newest first) ----

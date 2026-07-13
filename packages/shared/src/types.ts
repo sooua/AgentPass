@@ -50,6 +50,33 @@ export type RotationJobStatus =
 
 export type RiskLevel = "low" | "medium" | "high" | "critical";
 
+/** What a scoped agent token is allowed to do. admin = manage tokens + CRUD. */
+export type Capability = "reveal" | "checkout" | "list" | "rotate" | "admin";
+
+/**
+ * A scoped, per-agent auth token. Layered on top of the full-power root token
+ * (~/.agentpass/token). Only the sha256 hash is persisted — plaintext is shown
+ * once at creation. Empty environments/target_* arrays mean "no restriction".
+ * Device-local: never synced (hashes are local auth material).
+ */
+export interface AgentToken {
+  id: string;
+  name: string;
+  /** sha256(hex) of the plaintext token. The plaintext is never stored. */
+  token_hash: string;
+  capabilities: Capability[];
+  environments: Environment[];
+  target_tags: string[];
+  target_ids: string[];
+  expires_at: string | null;
+  created_at: string;
+  last_used_at: string | null;
+  revoked: boolean;
+}
+
+/** AgentToken metadata as returned to clients (never carries the hash). */
+export type AgentTokenPublic = Omit<AgentToken, "token_hash">;
+
 export interface Target {
   id: string;
   name: string;

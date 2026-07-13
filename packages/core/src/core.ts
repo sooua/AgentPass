@@ -37,6 +37,7 @@ import type {
   UpdateRotationPolicyInput,
   UpdateTargetInput,
 } from "@agentpass/shared";
+import { AgentTokenService } from "./agent-tokens.js";
 import { AppError, approvalRequired, badRequest, conflict, notFound, notSupported } from "./errors.js";
 import type { Logger } from "./logger.js";
 import { createLogger } from "./logger.js";
@@ -75,9 +76,12 @@ export class AgentPassCore {
   private readonly rotationBackoffMinutes: number;
   private readonly listeners = new Set<(e: AuditLog) => void>();
   readonly log: Logger;
+  /** Scoped per-agent token management + authorization (B3). */
+  readonly tokens: AgentTokenService;
 
   constructor(deps: CoreDeps) {
     this.repo = deps.repo;
+    this.tokens = new AgentTokenService(deps.repo);
     this.backends = new Map(deps.backends.map((b) => [b.kind, b]));
     this.checkouts = new Map(deps.checkoutProviders.map((c) => [c.mode, c]));
     this.rotations = deps.rotationProviders ?? [];
@@ -272,7 +276,9 @@ export class AgentPassCore {
   }
 
   // -------- reveal (HIGH RISK) --------
-  async reveal(credentialId: string, input: RevealInput): Promise<RevealResult> {
+  /** actor overrides the audit actor with the caller's token identity (B3);
+   * defaults to requested_by for back-compat with the root/all-power token. */
+  async reveal(credentialId: string, input: RevealInput, actor?: string): Promise<RevealResult> {
     const c = this.getCredential(credentialId);
     if (c.status === "revoked") throw conflict("credential is revoked");
 
@@ -335,7 +341,7 @@ export class AgentPassCore {
     }
 
     this.audit({
-      actor: input.requested_by,
+      actor: actor ?? input.requested_by,
       action: "reveal_secret",
       resource_type: "credential",
       resource_id: c.id,
@@ -485,7 +491,7 @@ export class AgentPassCore {
   }
 
   // -------- checkout (RECOMMENDED) --------
-  async checkout(targetId: string, input: CheckoutInput): Promise<CheckoutResult> {
+  async checkout(targetId: string, input: CheckoutInput, actor?: string): Promise<CheckoutResult> {
     const target = this.getTarget(targetId);
     const provider = this.checkouts.get(input.mode);
     if (!provider) throw notSupported(`checkout mode not available: ${input.mode}`);
@@ -532,7 +538,7 @@ export class AgentPassCore {
     this.repo.createCheckout(session);
 
     this.audit({
-      actor: input.requested_by,
+      actor: actor ?? input.requested_by,
       action: "checkout_ssh_access",
       resource_type: "target",
       resource_id: target.id,

@@ -155,3 +155,18 @@ export const markRotationFailedSchema = z.object({
   error_message: z.string().min(1),
 });
 export type MarkRotationFailedInput = z.infer<typeof markRotationFailedSchema>;
+
+// ---- scoped agent tokens (B3) ----
+export const capabilitySchema = z.enum(["reveal", "checkout", "list", "rotate", "admin"]);
+
+export const createAgentTokenSchema = z.object({
+  name: z.string().min(1),
+  capabilities: z.array(capabilitySchema).min(1),
+  /** Empty = no restriction (all environments / all targets). */
+  environments: z.array(environmentSchema).default([]),
+  target_tags: z.array(z.string()).default([]),
+  target_ids: z.array(z.string()).default([]),
+  /** Optional ISO expiry (TTL). null = never expires. */
+  expires_at: z.string().datetime().nullable().default(null),
+});
+export type CreateAgentTokenInput = z.infer<typeof createAgentTokenSchema>;

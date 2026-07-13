@@ -2,6 +2,7 @@
 // Infisical, Warpgate or JumpServer can be dropped in later without touching
 // business logic. See docs/open-source-reuse.md.
 import type {
+  AgentToken,
   AuditLog,
   CheckoutMode,
   CheckoutSession,
@@ -139,6 +140,13 @@ export interface Repository {
   getRotationJob(id: string): RotationJob | null;
   listRotationJobs(): RotationJob[];
   updateRotationJob(id: string, patch: Partial<RotationJob>): RotationJob | null;
+
+  // agent tokens (scoped per-agent auth)
+  createAgentToken(t: AgentToken): void;
+  getAgentToken(id: string): AgentToken | null;
+  listAgentTokens(): AgentToken[];
+  updateAgentToken(id: string, patch: Partial<AgentToken>): AgentToken | null;
+  deleteAgentToken(id: string): boolean;
 
   // audit
   appendAudit(log: AuditLog): void;
