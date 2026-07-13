@@ -22,6 +22,12 @@
 | `schedule_rotation` | `credential_id, reason?, target_id?` | Create rotation job |
 | `mark_rotation_complete` | `rotation_job_id, new_secret_value, new_secret_version?` | Complete rotation |
 | `list_audit_logs` | `limit?` | Recent audit entries |
+| `create_agent_token` | `name, capabilities, environments?, target_tags?, target_ids?, expires_at?` | **ADMIN** — mint a scoped token; plaintext returned once |
+| `list_agent_tokens` | — | **ADMIN** — scoped tokens (metadata only) |
+| `revoke_agent_token` | `token_id` | **ADMIN** — revoke a scoped token |
+
+The three `*_agent_token` tools require an admin/root token; a non-admin scoped
+token calling them gets `403 forbidden`. See [security-model.md](./security-model.md#scoped-agent-tokens-b3).
 
 ## `reveal_secret` behavior
 - Returns `secret_value` (plaintext) plus `rotation_required`, `rotate_before`, `reveal_id`, `rotation_job_id`.

@@ -194,6 +194,45 @@ server.registerTool(
   async ({ limit }) => ok(await client.get(`/audit-logs?limit=${limit}`)),
 );
 
+// ---- scoped agent tokens (ADMIN: requires an admin/root token) ----
+server.registerTool(
+  "create_agent_token",
+  {
+    title: "Create a scoped agent token (ADMIN)",
+    description:
+      "Mint a scoped token that limits an agent to specific capabilities/environments/targets. Returns the plaintext token ONCE (never retrievable again) — hand it to that agent via AGENTPASS_TOKEN. Requires admin rights; a non-admin token gets 403. Empty environments/target_tags/target_ids = no restriction.",
+    inputSchema: {
+      name: z.string(),
+      capabilities: z.array(z.enum(["reveal", "checkout", "list", "rotate", "admin"])).min(1),
+      environments: z.array(z.enum(["dev", "staging", "prod"])).default([]),
+      target_tags: z.array(z.string()).default([]),
+      target_ids: z.array(z.string()).default([]),
+      expires_at: z.string().nullable().default(null),
+    },
+  },
+  async (body) => ok(await client.post("/agent-tokens", body)),
+);
+
+server.registerTool(
+  "list_agent_tokens",
+  {
+    title: "List agent tokens (ADMIN)",
+    description: "List scoped agent tokens (metadata only — never the secret/hash). Requires admin rights.",
+    inputSchema: {},
+  },
+  async () => ok(await client.get("/agent-tokens")),
+);
+
+server.registerTool(
+  "revoke_agent_token",
+  {
+    title: "Revoke an agent token (ADMIN)",
+    description: "Revoke a scoped agent token by id; it can no longer authenticate. Requires admin rights.",
+    inputSchema: { token_id: z.string() },
+  },
+  async ({ token_id }) => ok(await client.post(`/agent-tokens/${token_id}/revoke`)),
+);
+
 async function main(): Promise<void> {
   const transport = new StdioServerTransport();
   await server.connect(transport);

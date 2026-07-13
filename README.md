@@ -88,12 +88,13 @@ The token is read automatically from `~/.agentpass/token` — don't put it in th
 config. **`AGENTPASS_URL` must match the daemon's port** (use `17470` if `4747`
 is blocked on your machine). Build the server first: `pnpm build`.
 
-**2. Tools exposed** (16)
+**2. Tools exposed** (19)
 ```
 list_targets · search_targets · get_target · set_target_credentials
 list_credentials · reveal_secret · list_reveal_requests · approve_reveal_request
 checkout_ssh_access · revoke_checkout · get_checkout_status · list_active_checkouts
 get_rotation_status · schedule_rotation · mark_rotation_complete · list_audit_logs
+create_agent_token · list_agent_tokens · revoke_agent_token   (admin-only)
 ```
 
 **3. Typical flow** — "log into a VPS and deploy". Just tell Claude Code:
