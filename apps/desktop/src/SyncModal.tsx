@@ -39,6 +39,7 @@ export function SyncModal({ onClose }: { onClose: () => void }) {
   const [history, setHistory] = useState<any[] | null>(null);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [encOpen, setEncOpen] = useState(false);
+  const [restoreId, setRestoreId] = useState<string | null>(null);
   const [pass, setPass] = useState("");
   const [token, setToken] = useState("");
   const [dav, setDav] = useState({ url: "", username: "", password: "" });
@@ -61,6 +62,7 @@ export function SyncModal({ onClose }: { onClose: () => void }) {
   const runSync = async () => { setBusy(true); try { await api.syncRun(); await refresh(); } finally { setBusy(false); } };
   const openHistory = async () => { setLoadingHistory(true); setHistory((await api.syncVersions().catch(() => ({ versions: [] }))).versions || []); setLoadingHistory(false); };
   const applyEnc = async () => { if (!pass.trim()) return; setState(await api.syncPassphrase(pass.trim())); setEncOpen(false); setPass(""); };
+  const doRestore = async () => { if (!restoreId) return; setBusy(true); try { await api.syncRestore(restoreId); await refresh(); setHistory(null); } finally { setBusy(false); setRestoreId(null); } };
 
   return (
     <div className="overlay" onClick={onClose}>
@@ -77,7 +79,7 @@ export function SyncModal({ onClose }: { onClose: () => void }) {
           {history ? (
             <History versions={history} loading={loadingHistory} busy={busy} t={t}
               onBack={() => setHistory(null)}
-              onRestore={async (v) => { if (!confirm(t("sync.restore") + "?")) return; setBusy(true); try { await api.syncRestore(v.id); await refresh(); setHistory(null); } finally { setBusy(false); } }} />
+              onRestore={(v) => setRestoreId(v.id)} />
           ) : tab === "status" ? (
             <Status state={state} t={t} />
           ) : (
@@ -176,6 +178,18 @@ export function SyncModal({ onClose }: { onClose: () => void }) {
             </div>
           )}
         </div>
+        {restoreId && (
+          <div className="overlay" onClick={(e) => { e.stopPropagation(); setRestoreId(null); }}>
+            <div className="modal" style={{ maxWidth: 420 }} onClick={(e) => e.stopPropagation()}>
+              <h3>{t("sync.restore")}</h3>
+              <div className="muted" style={{ marginBottom: 8 }}>{t("sync.restoreConfirm")}</div>
+              <div className="toolbar" style={{ marginTop: 16 }}>
+                <button className="btn-primary btn" disabled={busy} onClick={doRestore}>{t("sync.restore")}</button>
+                <button className="btn" onClick={() => setRestoreId(null)}>{t("common.cancel")}</button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

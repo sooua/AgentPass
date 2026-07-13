@@ -664,10 +664,12 @@ function Checkouts() {
 function Rotation() {
   const { t } = usePrefs();
   const { data, err, reload } = useList(() => api.rotationJobs(), []);
-  const complete = async (id: string) => {
-    const v = prompt(t("rotation.prompt"));
-    if (!v) return;
-    await api.markRotationSuccess(id, { new_secret_value: v });
+  const [jobId, setJobId] = useState<string | null>(null);
+  const [secret, setSecret] = useState("");
+  const submit = async () => {
+    if (!secret || !jobId) return;
+    await api.markRotationSuccess(jobId, { new_secret_value: secret });
+    setJobId(null); setSecret("");
     reload();
   };
   return (
@@ -685,13 +687,32 @@ function Rotation() {
                 <td><Badge v={j.status} /></td>
                 <td>{time(j.created_at)}</td>
                 <td>{time(j.completed_at)}</td>
-                <td>{(j.status === "pending" || j.status === "running") && <button className="btn-primary btn btn-sm" onClick={() => complete(j.id)}>{t("rotation.mark")}</button>}</td>
+                <td>{(j.status === "pending" || j.status === "running") && <button className="btn-primary btn btn-sm" onClick={() => { setSecret(""); setJobId(j.id); }}>{t("rotation.mark")}</button>}</td>
               </tr>
             ))}
             {data && !data.jobs?.length && <tr><td colSpan={6} className="empty">{t("rotation.empty")}</td></tr>}
           </tbody>
         </table>
       </div>
+      {jobId && (
+        <div className="overlay" onClick={() => setJobId(null)}>
+          <div className="modal" style={{ maxWidth: 460 }} onClick={(e) => e.stopPropagation()}>
+            <h3>{t("rotation.mark")}</h3>
+            <label>{t("rotation.prompt")}</label>
+            <textarea
+              autoFocus
+              value={secret}
+              onChange={(e) => setSecret(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Escape") setJobId(null); }}
+              style={{ minHeight: 90, fontFamily: "var(--mono, monospace)" }}
+            />
+            <div className="toolbar" style={{ marginTop: 16 }}>
+              <button className="btn-primary btn" disabled={!secret.trim()} onClick={submit}>{t("common.confirm")}</button>
+              <button className="btn" onClick={() => setJobId(null)}>{t("common.cancel")}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
@@ -949,18 +970,6 @@ function Settings() {
   };
   return (
     <>
-      <div className="card">
-        <h3>{t("sync.title")}</h3>
-        <button className="btn-primary btn" onClick={() => setSyncOpen(true)}>{t("sync.open")}…</button>
-      </div>
-      {syncOpen && <SyncModal onClose={() => setSyncOpen(false)} />}
-      <BackupPanel />
-      <UpdatePanel />
-      <div className="card">
-        <h3>{t("settings.language")}</h3>
-        <Seg<Lang> value={lang} onChange={setLang} options={[["en", "English"], ["zh", "中文"]]} />
-      </div>
-      <LockCard />
       <AgentTokensPanel />
       <div className="card">
         <h3>{t("settings.connTitle")}</h3>
@@ -974,6 +983,19 @@ function Settings() {
           <span className="muted">{status}</span>
         </div>
       </div>
+      <LockCard />
+      <div className="card">
+        <h3>{t("sync.title")}</h3>
+        <button className="btn-primary btn" onClick={() => setSyncOpen(true)}>{t("sync.open")}…</button>
+      </div>
+      {syncOpen && <SyncModal onClose={() => setSyncOpen(false)} />}
+      <BackupPanel />
+      <div className="card">
+        <h3>{t("settings.appearance")}</h3>
+        <label>{t("settings.language")}</label>
+        <Seg<Lang> value={lang} onChange={setLang} options={[["en", "English"], ["zh", "中文"]]} />
+      </div>
+      <UpdatePanel />
     </>
   );
 }
