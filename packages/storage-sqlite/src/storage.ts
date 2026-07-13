@@ -14,7 +14,7 @@ import type {
   Target,
   Tombstone,
 } from "@agentpass/shared";
-import type { Repository, SecretBlobStore } from "@agentpass/core";
+import type { AuditListOptions, Repository, SecretBlobStore } from "@agentpass/core";
 
 // ponytail: whole-row JSON per entity (id TEXT PK, data JSON). MVP scale only.
 // Upgrade to typed columns + indexes when list filtering/large volume demands it.
@@ -63,6 +63,17 @@ export class SqliteStore implements Repository, SecretBlobStore {
     );
     // Tombstones: deleted entity ids so deletions propagate through sync merges.
     this.db.exec(`CREATE TABLE IF NOT EXISTS tombstones (id TEXT PRIMARY KEY, data TEXT NOT NULL)`);
+    // Expression indexes over the JSON blobs for the two per-request/per-tick hot
+    // paths: token auth (lookup by hash) and the expiry sweep (active sessions).
+    this.db.exec(
+      `CREATE INDEX IF NOT EXISTS idx_agent_tokens_hash ON agent_tokens(json_extract(data,'$.token_hash'))`,
+    );
+    this.db.exec(
+      `CREATE INDEX IF NOT EXISTS idx_checkouts_status ON checkouts(json_extract(data,'$.status'))`,
+    );
+    this.db.exec(
+      `CREATE INDEX IF NOT EXISTS idx_reveals_status ON reveals(json_extract(data,'$.status'))`,
+    );
     // Schema version marker for future migrations.
     this.db.exec(`CREATE TABLE IF NOT EXISTS _meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)`);
     this.db
@@ -166,6 +177,17 @@ export class SqliteStore implements Repository, SecretBlobStore {
   updateReveal(id: string, patch: Partial<SecretReveal>): SecretReveal | null {
     return this.patchRow<SecretReveal>("reveals", id, patch);
   }
+  expireReveals(nowIso: string): number {
+    const res = this.db
+      .prepare(
+        `UPDATE reveals
+           SET data = json_set(data, '$.status', 'expired')
+         WHERE json_extract(data,'$.status') = 'active'
+           AND json_extract(data,'$.expires_at') < ?`,
+      )
+      .run(nowIso);
+    return res.changes as number;
+  }
   pruneReveals(beforeIso: string): number {
     const res = this.db
       .prepare(
@@ -210,6 +232,12 @@ export class SqliteStore implements Repository, SecretBlobStore {
   }
   listCheckouts(): CheckoutSession[] {
     return this.allRows<CheckoutSession>("checkouts");
+  }
+  listActiveCheckouts(): CheckoutSession[] {
+    const rows = this.db
+      .prepare(`SELECT data FROM checkouts WHERE json_extract(data,'$.status') = 'active'`)
+      .all() as { data: string }[];
+    return rows.map((r) => JSON.parse(r.data) as CheckoutSession);
   }
   updateCheckout(id: string, patch: Partial<CheckoutSession>): CheckoutSession | null {
     return this.patchRow<CheckoutSession>("checkouts", id, patch);
@@ -260,6 +288,12 @@ export class SqliteStore implements Repository, SecretBlobStore {
   getAgentToken(id: string): AgentToken | null {
     return this.getRow<AgentToken>("agent_tokens", id);
   }
+  findAgentTokenByHash(hash: string): AgentToken | null {
+    const r = this.db
+      .prepare(`SELECT data FROM agent_tokens WHERE json_extract(data,'$.token_hash') = ?`)
+      .get(hash) as { data: string } | undefined;
+    return r ? (JSON.parse(r.data) as AgentToken) : null;
+  }
   listAgentTokens(): AgentToken[] {
     return this.allRows<AgentToken>("agent_tokens");
   }
@@ -276,10 +310,27 @@ export class SqliteStore implements Repository, SecretBlobStore {
       .prepare(`INSERT INTO audit_logs (id, data) VALUES (?, ?)`)
       .run(log.id, JSON.stringify(log));
   }
-  listAudit(limit = 200): AuditLog[] {
+  listAudit(opts: AuditListOptions = {}): AuditLog[] {
+    // Filters go into the WHERE so `action=X` returns the newest X rows, not the
+    // X rows that happen to sit inside the newest N of every action.
+    const where: string[] = [];
+    const params: string[] = [];
+    if (opts.actor) {
+      where.push(`json_extract(data,'$.actor') = ?`);
+      params.push(opts.actor);
+    }
+    if (opts.action) {
+      where.push(`json_extract(data,'$.action') = ?`);
+      params.push(opts.action);
+    }
+    if (opts.risk_level) {
+      where.push(`json_extract(data,'$.risk_level') = ?`);
+      params.push(opts.risk_level);
+    }
+    const clause = where.length ? `WHERE ${where.join(" AND ")}` : "";
     const rows = this.db
-      .prepare(`SELECT data FROM audit_logs ORDER BY seq DESC LIMIT ?`)
-      .all(limit) as { data: string }[];
+      .prepare(`SELECT data FROM audit_logs ${clause} ORDER BY seq DESC LIMIT ?`)
+      .all(...params, opts.limit ?? 200) as { data: string }[];
     return rows.map((r) => JSON.parse(r.data) as AuditLog);
   }
 

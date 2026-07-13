@@ -29,6 +29,28 @@ const AUTO_BACKOFF_MAX = 10;
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : String(e));
 const epoch = (iso: string) => Date.parse(iso);
 
+/** JSON.stringify with recursively sorted object keys — order-independent output. */
+function stableStringify(value: unknown): string {
+  return JSON.stringify(value, (_k, v) =>
+    v && typeof v === "object" && !Array.isArray(v)
+      ? Object.fromEntries(Object.keys(v as Record<string, unknown>).sort().map((k) => [k, (v as Record<string, unknown>)[k]]))
+      : v,
+  );
+}
+
+/** Count ids present on BOTH sides with a different updated_at — i.e. the same
+ * item was edited on two devices. Last-writer-wins silently drops the older
+ * edit, so surface how many that was. */
+function countConflicts<T extends HasIdTime>(a: T[], b: T[]): number {
+  const bTime = new Map(b.map((x) => [x.id, x.updated_at]));
+  let n = 0;
+  for (const x of a) {
+    const t = bTime.get(x.id);
+    if (t != null && t !== x.updated_at) n++;
+  }
+  return n;
+}
+
 interface HasIdTime {
   id: string;
   updated_at: string;
@@ -236,7 +258,10 @@ export class SyncEngine {
       rotation_policies: byId(b.rotation_policies),
       tombstones: byId(b.tombstones),
     };
-    return createHash("sha1").update(JSON.stringify(norm)).digest("hex");
+    // Sort object keys too — patchRow rebuilds rows with `{...current, ...patch}`,
+    // which can reorder keys. Without a stable stringify, an identical bundle
+    // hashes differently and triggers a needless push every sync.
+    return createHash("sha1").update(stableStringify(norm)).digest("hex");
   }
 
   private envelope(b: SyncBundle): SyncEnvelope {
@@ -288,6 +313,15 @@ export class SyncEngine {
       this.config.lastSyncedAt = Date.now();
       return this.finish("uptodate", "already up to date");
     }
+    // Surface concurrent edits: same item changed on both devices. LWW keeps the
+    // newer updated_at and silently discards the other — worth a log line since
+    // wall-clock skew between devices can pick the "wrong" winner.
+    const conflicts =
+      countConflicts(local.targets, remote.targets) +
+      countConflicts(local.credentials, remote.credentials) +
+      countConflicts(local.rotation_policies, remote.rotation_policies);
+    if (conflicts > 0) this.log?.info("sync_conflicts", { count: conflicts });
+
     const merged = mergeBundles(local, remote);
     const mergedHash = this.hashOf(merged);
     const localChanged = mergedHash !== localHash;

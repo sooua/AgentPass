@@ -38,7 +38,7 @@ import type {
   UpdateTargetInput,
 } from "@agentpass/shared";
 import { AgentTokenService } from "./agent-tokens.js";
-import { AppError, approvalRequired, badRequest, conflict, notFound, notSupported } from "./errors.js";
+import { AppError, approvalRequired, badRequest, conflict, forbidden, notFound, notSupported } from "./errors.js";
 import type { Logger } from "./logger.js";
 import { createLogger } from "./logger.js";
 import type {
@@ -111,11 +111,14 @@ export class AgentPassCore {
   }
 
   listAudit(query: AuditQuery = {}): AuditLog[] {
-    let out = this.repo.listAudit(query.limit ?? 200);
-    if (query.actor) out = out.filter((a) => a.actor === query.actor);
-    if (query.action) out = out.filter((a) => a.action === query.action);
-    if (query.risk_level) out = out.filter((a) => a.risk_level === query.risk_level);
-    return out;
+    // Filters are applied in SQL (WHERE + LIMIT together), so a filtered query
+    // returns the newest matching rows rather than matches inside the newest 200.
+    return this.repo.listAudit({
+      actor: query.actor,
+      action: query.action,
+      risk_level: query.risk_level,
+      limit: query.limit ?? 200,
+    });
   }
 
   // -------- targets --------
@@ -287,8 +290,12 @@ export class AgentPassCore {
       : null;
     // Resolve (but do NOT consume) the approval up front; consume only after the
     // reveal actually succeeds so a transient failure doesn't waste the approval.
+    // The requester identity is the AUTHENTICATED actor (token name / "root"),
+    // not the spoofable requested_by field — that is what the approver is checked
+    // against for separation of duties.
+    const requesterIdentity = actor ?? input.requested_by;
     const approvalToConsume = policyForApproval?.approval_required
-      ? this.resolveApproval(c.id, input)
+      ? this.resolveApproval(c.id, input, requesterIdentity)
       : null;
 
     const backend = this.backendFor(c.provider);
@@ -412,7 +419,7 @@ export class AgentPassCore {
    * must consume after a successful reveal, or throws (approval_required /
    * conflict / bad_request) and opens/reuses a pending request when none is given.
    */
-  private resolveApproval(credentialId: string, input: RevealInput): string {
+  private resolveApproval(credentialId: string, input: RevealInput, requester: string): string {
     if (input.approval_id) {
       const req = this.repo.getRevealRequest(input.approval_id);
       if (!req || req.credential_id !== credentialId)
@@ -427,7 +434,7 @@ export class AgentPassCore {
     const existing = this.repo
       .listRevealRequests()
       .find(
-        (r) => r.status === "pending" && r.credential_id === credentialId && r.requested_by === input.requested_by,
+        (r) => r.status === "pending" && r.credential_id === credentialId && r.requested_by === requester,
       );
     if (existing) throw approvalRequired(existing.id);
 
@@ -435,7 +442,7 @@ export class AgentPassCore {
       id: newId("rreq"),
       credential_id: credentialId,
       target_id: input.target_id,
-      requested_by: input.requested_by,
+      requested_by: requester,
       purpose: input.purpose,
       ttl_seconds: input.ttl_seconds,
       status: "pending",
@@ -445,7 +452,7 @@ export class AgentPassCore {
     };
     this.repo.createRevealRequest(req);
     this.audit({
-      actor: input.requested_by,
+      actor: requester,
       action: "reveal_approval_requested",
       resource_type: "credential",
       resource_id: credentialId,
@@ -471,6 +478,11 @@ export class AgentPassCore {
   decideRevealRequest(id: string, approved: boolean, input: DecideRevealRequestInput): RevealRequest {
     const req = this.getRevealRequest(id);
     if (req.status !== "pending") throw conflict(`request already ${req.status}`);
+    // Separation of duties: the approver's identity must differ from the
+    // requester's. Blocks an agent (or a shared root token) from approving its
+    // own gated reveal — the hole flagged in docs/security-model.md.
+    if (approved && input.decided_by === req.requested_by)
+      throw forbidden("approver must differ from requester (separation of duties)");
     const updated = this.repo.updateRevealRequest(id, {
       status: approved ? "approved" : "denied",
       decided_at: nowIso(),
@@ -610,22 +622,19 @@ export class AgentPassCore {
 
   /** Clean up expired checkouts and mark expired reveals. Run on start + on a timer. */
   async sweepExpired(): Promise<{ checkouts: number; reveals: number }> {
+    // Checkouts need a per-session side effect (wipe temp key artifacts), so we
+    // still iterate — but only over active sessions, not the whole table.
     let checkouts = 0;
-    for (const s of this.repo.listCheckouts()) {
-      if (s.status === "active" && isPast(s.expires_at)) {
+    for (const s of this.repo.listActiveCheckouts()) {
+      if (isPast(s.expires_at)) {
         const provider = this.checkouts.get(s.mode);
         if (provider) await provider.cleanup(s);
         this.repo.updateCheckout(s.id, { status: "expired" });
         checkouts++;
       }
     }
-    let reveals = 0;
-    for (const r of this.repo.listReveals()) {
-      if (r.status === "active" && isPast(r.expires_at)) {
-        this.repo.updateReveal(r.id, { status: "expired" });
-        reveals++;
-      }
-    }
+    // Reveals have no side effect on expiry — expire them all in one statement.
+    const reveals = this.repo.expireReveals(nowIso());
     if (checkouts || reveals) this.log.info("sweep_expired", { checkouts, reveals });
     return { checkouts, reveals };
   }

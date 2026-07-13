@@ -153,6 +153,25 @@ describe("approval gate", () => {
     // approval is single-use
     await expect(core.reveal(cred.id, { ...revealArgs, approval_id: reqs[0]!.id })).rejects.toMatchObject({ code: "conflict" });
   });
+
+  it("forbids self-approval: approver identity must differ from requester", async () => {
+    const p = policyWithApproval();
+    const cred = await core.createCredential({
+      name: "prod-pw", type: "password", provider: "local_encrypted",
+      secret_value: FAKE_PASSWORD, metadata: {}, rotation_policy_id: p.id,
+    });
+    // actor "claude" requests → request is stamped with the authenticated identity
+    await expect(
+      core.reveal(cred.id, { target_id: null, requested_by: "spoofed", purpose: "p", ttl_seconds: 60 }, "claude"),
+    ).rejects.toMatchObject({ code: "approval_required" });
+    const req = core.listRevealRequests()[0]!;
+    expect(req.requested_by).toBe("claude");
+    // same identity cannot approve its own request
+    expect(() => core.decideRevealRequest(req.id, true, { decided_by: "claude" })).toThrow(/separation of duties/);
+    // a different identity can
+    const decided = core.decideRevealRequest(req.id, true, { decided_by: "human" });
+    expect(decided.status).toBe("approved");
+  });
 });
 
 describe("approval gate — deny & dedup", () => {

@@ -13,6 +13,8 @@ import { forbidden } from "./errors.js";
 import type { Repository } from "./ports.js";
 
 const sha256 = (s: string): string => createHash("sha256").update(s).digest("hex");
+/** How stale last_used_at may get before we bother writing it again. */
+const LAST_USED_DEBOUNCE_MS = 60_000;
 const strip = (t: AgentToken): AgentTokenPublic => {
   const { token_hash: _hash, ...rest } = t;
   return rest;
@@ -66,16 +68,18 @@ export class AgentTokenService {
 
   /**
    * Resolve a raw bearer token to its AgentToken, or null if unknown, revoked
-   * or expired. Bumps last_used_at on success.
-   * ponytail: list-scan by hash — fine for a handful of tokens; add an indexed
-   * hash column if token counts ever grow large.
+   * or expired. Runs on every authenticated request, so: indexed lookup by hash
+   * (no full-table scan) and last_used_at written at most once per minute (no
+   * DB write on the read path for back-to-back calls).
    */
   authenticate(raw: string): AgentToken | null {
     const hash = sha256(raw);
-    const t = this.repo.listAgentTokens().find((x) => x.token_hash === hash);
+    const t = this.repo.findAgentTokenByHash(hash);
     if (!t || t.revoked) return null;
     if (t.expires_at && isPast(t.expires_at)) return null;
-    this.repo.updateAgentToken(t.id, { last_used_at: nowIso() });
+    const last = t.last_used_at ? Date.parse(t.last_used_at) : 0;
+    if (Date.now() - last > LAST_USED_DEBOUNCE_MS)
+      this.repo.updateAgentToken(t.id, { last_used_at: nowIso() });
     return t;
   }
 

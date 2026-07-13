@@ -172,15 +172,27 @@ describe("daemon HTTP", () => {
     expect(res.statusCode).toBe(401);
   });
 
-  it("gates reveal behind approval when the policy requires it", async () => {
+  it("gates reveal behind approval; a separate identity must approve", async () => {
     const pol = (await post("/rotation-policies", { name: "gated", approval_required: true, rotate_after_reveal: false })).json();
     const cred = (await post("/credentials", { name: "pw", type: "password", secret_value: "FAKE", rotation_policy_id: pol.id })).json();
 
+    // root requests → blocked, a pending request is opened under identity "root"
     const blocked = await post(`/credentials/${cred.id}/reveal`, { requested_by: "a", purpose: "p", ttl_seconds: 60 });
     expect(blocked.statusCode).toBe(403);
     const requestId = blocked.json().error.data.reveal_request_id;
 
-    await post(`/reveal-requests/${requestId}/approve`, { decided_by: "me" });
+    // root cannot approve its own request (separation of duties)
+    const selfApprove = await post(`/reveal-requests/${requestId}/approve`, {});
+    expect(selfApprove.statusCode).toBe(403);
+    expect(selfApprove.json().error.code).toBe("forbidden");
+
+    // a distinct admin identity approves, then the reveal succeeds
+    const { token: approver } = await mkToken({ name: "approver", capabilities: ["admin"] });
+    const approved = await app.inject({
+      method: "POST", url: `/reveal-requests/${requestId}/approve`, headers: authWith(approver), payload: {},
+    });
+    expect(approved.statusCode).toBe(200);
+
     const okRes = await post(`/credentials/${cred.id}/reveal`, { requested_by: "a", purpose: "p", ttl_seconds: 60, approval_id: requestId });
     expect(okRes.statusCode).toBe(200);
     expect(okRes.json().secret_value).toBe("FAKE");

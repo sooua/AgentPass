@@ -16,6 +16,15 @@ const aliasFor = (t: Target): string =>
  * per-checkout directory (0600 key). The agent logs in with `ssh -F <cfg> <alias>`.
  * TTL expiry / revoke wipe the directory. We never implement SSH ourselves —
  * this only prepares inputs for the system OpenSSH client.
+ *
+ * Two properties worth knowing:
+ *  - TTL governs credential availability, NOT live connections. Expiry removes
+ *    the key file (on the ≤30s maintenance sweep, or immediately on revoke); an
+ *    SSH session already established with that key keeps running until the user
+ *    closes it. Kill live sessions on the target if that matters.
+ *  - Password mode emits an `sshpass -f … ssh …` command. `sshpass` must be on
+ *    PATH to run it (on Windows that means WSL/Git-Bash/Cygwin) — the command is
+ *    generated regardless of OS; only execution needs the binary.
  */
 export class TempKeyFileCheckoutProvider implements CheckoutProvider {
   readonly mode = "temp_key_file" as const;

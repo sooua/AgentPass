@@ -94,7 +94,9 @@ server.registerTool(
       purpose: z.string(),
       requested_by: z.string(),
       ttl_seconds: z.number().int().positive().max(86400).default(900),
-      mode: z.enum(["temp_key_file", "ssh_agent_socket"]).default("temp_key_file"),
+      // Only temp_key_file is implemented; ssh_agent_socket is a stub, so don't
+      // offer it to agents (picking it would 500). Re-add when it ships.
+      mode: z.enum(["temp_key_file"]).default("temp_key_file"),
       credential_id: z.string().optional(),
     },
   },
@@ -182,10 +184,11 @@ server.registerTool(
   "approve_reveal_request",
   {
     title: "Approve a reveal request",
-    description: "Approve a pending reveal request; then call reveal_secret again with the returned approval_id (= request id).",
-    inputSchema: { request_id: z.string(), decided_by: z.string().default("operator") },
+    description:
+      "Approve a pending reveal request; then call reveal_secret again with the returned approval_id (= request id). The approver identity is your token (never your own request — separation of duties returns 403 forbidden).",
+    inputSchema: { request_id: z.string() },
   },
-  async ({ request_id, decided_by }) => ok(await client.post(`/reveal-requests/${request_id}/approve`, { decided_by })),
+  async ({ request_id }) => ok(await client.post(`/reveal-requests/${request_id}/approve`)),
 );
 
 server.registerTool(

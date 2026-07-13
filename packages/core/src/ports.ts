@@ -10,6 +10,7 @@ import type {
   CredentialProviderKind,
   CredentialType,
   RevealRequest,
+  RiskLevel,
   RotationJob,
   RotationPolicy,
   SecretReveal,
@@ -21,6 +22,14 @@ export interface RevealContext {
   credential_id: string;
   requested_by: string;
   purpose: string;
+}
+
+/** Filters pushed down to the audit query so it never fetches-then-drops rows. */
+export interface AuditListOptions {
+  actor?: string;
+  action?: string;
+  risk_level?: RiskLevel;
+  limit?: number;
 }
 
 // ---- CredentialStoreProvider: owns secret material (write side) ----
@@ -110,6 +119,8 @@ export interface Repository {
   getReveal(id: string): SecretReveal | null;
   listReveals(): SecretReveal[];
   updateReveal(id: string, patch: Partial<SecretReveal>): SecretReveal | null;
+  /** Mark every active reveal past the given ISO time as expired in one statement. Returns rows changed. */
+  expireReveals(nowIso: string): number;
   /** Delete terminal (expired/revoked/rotated) reveals older than the given ISO time. */
   pruneReveals(beforeIso: string): number;
 
@@ -125,6 +136,8 @@ export interface Repository {
   createCheckout(s: CheckoutSession): void;
   getCheckout(id: string): CheckoutSession | null;
   listCheckouts(): CheckoutSession[];
+  /** Only sessions still active — lets the expiry sweep skip parsing terminal rows. */
+  listActiveCheckouts(): CheckoutSession[];
   updateCheckout(id: string, patch: Partial<CheckoutSession>): CheckoutSession | null;
   /** Delete terminal (expired/revoked) checkouts older than the given ISO time. */
   pruneCheckouts(beforeIso: string): number;
@@ -144,13 +157,15 @@ export interface Repository {
   // agent tokens (scoped per-agent auth)
   createAgentToken(t: AgentToken): void;
   getAgentToken(id: string): AgentToken | null;
+  /** Indexed lookup by token hash — the per-request auth hot path. */
+  findAgentTokenByHash(hash: string): AgentToken | null;
   listAgentTokens(): AgentToken[];
   updateAgentToken(id: string, patch: Partial<AgentToken>): AgentToken | null;
   deleteAgentToken(id: string): boolean;
 
   // audit
   appendAudit(log: AuditLog): void;
-  listAudit(limit?: number): AuditLog[];
+  listAudit(opts?: AuditListOptions): AuditLog[];
 
   // tombstones (deletion propagation for sync)
   addTombstone(t: Tombstone): void;

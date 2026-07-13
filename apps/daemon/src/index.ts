@@ -23,12 +23,21 @@ async function main(): Promise<void> {
   // manual mark-complete. Opt in only once a GatewayProvider applies the new
   // secret to the target. See docs/rotation-model.md.
   const autoRotate = process.env.AGENTPASS_UNSAFE_AUTO_ROTATE === "1";
+  // Guard against overlap: a slow autoTick (e.g. S3 hanging) must not let the
+  // next 30s tick start a second maintenance pass on top of the first.
+  let maintaining = false;
   const maintain = async () => {
-    await core.sweepExpired();
-    core.scanDueRotations();
-    if (autoRotate) await core.runAutoRotations();
-    core.pruneOld(Number(process.env.AGENTPASS_RETENTION_DAYS ?? 30));
-    await engine.autoTick();
+    if (maintaining) return;
+    maintaining = true;
+    try {
+      await core.sweepExpired();
+      core.scanDueRotations();
+      if (autoRotate) await core.runAutoRotations();
+      core.pruneOld(Number(process.env.AGENTPASS_RETENTION_DAYS ?? 30));
+      await engine.autoTick();
+    } finally {
+      maintaining = false;
+    }
   };
   await maintain();
   const timer = setInterval(() => void maintain(), 30_000);

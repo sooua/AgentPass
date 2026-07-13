@@ -15,7 +15,6 @@ import {
   createRotationJobSchema,
   createTargetSchema,
   credentialQuerySchema,
-  decideRevealRequestSchema,
   markRotationFailedSchema,
   markRotationSuccessSchema,
   revealSchema,
@@ -25,6 +24,7 @@ import {
   updateRotationPolicySchema,
   updateTargetSchema,
   type AgentToken,
+  type AuditLog,
   type Capability,
   type RevealInput,
 } from "@agentpass/shared";
@@ -133,6 +133,36 @@ export async function buildServer(core: AgentPassCore, engine: SyncEngine, cfg: 
     return reply.code(500).send({ error: { code: "internal", message: "internal error" } });
   });
 
+  // A scoped token must not learn about activity on targets outside its scope via
+  // the event stream. Root / unrestricted tokens see everything; a scoped token
+  // sees an event only if it could authorize a `list` against that target, and
+  // never sees target-less events (nothing to check the scope against).
+  const canSeeEvent = (agent: AgentIdentity, e: AuditLog): boolean => {
+    const token = agent.token;
+    if (agent.root || !token) return true;
+    const scoped =
+      token.environments.length > 0 || token.target_tags.length > 0 || token.target_ids.length > 0;
+    if (!scoped) return true;
+    if (!e.target_id) return false;
+    let target;
+    try {
+      target = core.getTarget(e.target_id);
+    } catch {
+      return false; // target gone → can't prove scope → hide
+    }
+    try {
+      core.tokens.authorize(token, {
+        capability: "list",
+        env: target.environment,
+        targetTags: target.tags,
+        targetId: target.id,
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
   // ---- live change stream (SSE) — replaces UI polling ----
   app.get("/events", (req, reply) => {
     reply.raw.writeHead(200, {
@@ -141,7 +171,9 @@ export async function buildServer(core: AgentPassCore, engine: SyncEngine, cfg: 
       Connection: "keep-alive",
     });
     reply.raw.write(": connected\n\n");
+    const agent = req.agent;
     const unsub = core.subscribe((e) => {
+      if (!canSeeEvent(agent, e)) return;
       reply.raw.write(`data: ${JSON.stringify({ action: e.action, resource_type: e.resource_type, ts: e.timestamp })}\n\n`);
     });
     const ping = setInterval(() => reply.raw.write(": ping\n\n"), 25000);
@@ -217,11 +249,13 @@ export async function buildServer(core: AgentPassCore, engine: SyncEngine, cfg: 
   app.get<{ Params: { id: string } }>("/reveal-requests/:id", async (req) =>
     core.getRevealRequest(req.params.id),
   );
+  // decided_by is the AUTHENTICATED identity, not a body field — otherwise an
+  // agent could name itself anything and defeat the separation-of-duties check.
   app.post<{ Params: { id: string } }>("/reveal-requests/:id/approve", async (req) =>
-    core.decideRevealRequest(req.params.id, true, decideRevealRequestSchema.parse(req.body ?? {})),
+    core.decideRevealRequest(req.params.id, true, { decided_by: req.agent.name }),
   );
   app.post<{ Params: { id: string } }>("/reveal-requests/:id/deny", async (req) =>
-    core.decideRevealRequest(req.params.id, false, decideRevealRequestSchema.parse(req.body ?? {})),
+    core.decideRevealRequest(req.params.id, false, { decided_by: req.agent.name }),
   );
 
   // ---- checkout (RECOMMENDED) ----
