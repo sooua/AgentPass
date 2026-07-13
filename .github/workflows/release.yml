@@ -69,7 +69,7 @@ jobs:
         with:
           projectPath: apps/desktop
           tagName: ${{ github.ref_name }}
-          releaseName: "agentpass ${{ github.ref_name }}"
+          releaseName: "AgentPass ${{ github.ref_name }}"
           releaseBodyPath: RELEASE_NOTES.md
           releaseDraft: true
           prerelease: false
