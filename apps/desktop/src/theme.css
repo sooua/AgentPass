@@ -120,11 +120,14 @@ a { color: var(--terracotta); text-decoration: none; }
 .sidebar { display: flex; flex-direction: column; }
 .brand small { display: block; font-family: var(--sans); font-size: 12px; color: var(--stone); letter-spacing: 0.12px; }
 .navlink {
-  display: block; padding: 8px 12px; border-radius: 8px; color: var(--olive);
+  display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 8px; color: var(--olive);
   font-size: 15px; cursor: pointer; margin-bottom: 2px;
 }
+.navlink svg { width: 17px; height: 17px; flex-shrink: 0; color: var(--stone); }
 .navlink:hover { background: var(--sand); color: var(--near-black); }
+.navlink:hover svg { color: var(--charcoal); }
 .navlink.active { background: var(--sand); color: var(--near-black); font-weight: 500; }
+.navlink.active svg { color: var(--terracotta); }
 
 /* main */
 /* Fluid, centered content: balanced margins on wide windows, fills on narrow. */

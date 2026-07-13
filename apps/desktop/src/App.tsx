@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState } from "react";
-import { Copy, KeyRound, Minus, Moon, RefreshCw, Settings as SettingsIcon, Sun, Trash2, X } from "lucide-react";
+import { Copy, Eye, Inbox, KeyRound, type LucideIcon, Minus, Moon, RefreshCw, ScrollText, Server, Settings as SettingsIcon, Sun, Terminal, Trash2, X } from "lucide-react";
 import { api, getToken, getUrl, setConn } from "./api.js";
 import { usePrefs, type Lang, type Theme } from "./i18n.js";
 import { SyncModal } from "./SyncModal.js";
@@ -27,15 +27,15 @@ async function autoConnect(): Promise<void> {
 
 type Page = "targets" | "credentials" | "reveals" | "checkouts" | "rotation" | "requests" | "audit" | "settings";
 
-// Settings is reached from the bottom-left icon, not the main nav.
-const PAGES: { id: Page; key: string }[] = [
-  { id: "targets", key: "nav.targets" },
-  { id: "credentials", key: "nav.credentials" },
-  { id: "reveals", key: "nav.reveals" },
-  { id: "checkouts", key: "nav.checkouts" },
-  { id: "rotation", key: "nav.rotation" },
-  { id: "requests", key: "nav.requests" },
-  { id: "audit", key: "nav.audit" },
+// Settings is reached from the top-bar icon, not the main nav.
+const PAGES: { id: Page; key: string; Icon: LucideIcon }[] = [
+  { id: "targets", key: "nav.targets", Icon: Server },
+  { id: "credentials", key: "nav.credentials", Icon: KeyRound },
+  { id: "reveals", key: "nav.reveals", Icon: Eye },
+  { id: "checkouts", key: "nav.checkouts", Icon: Terminal },
+  { id: "rotation", key: "nav.rotation", Icon: RefreshCw },
+  { id: "requests", key: "nav.requests", Icon: Inbox },
+  { id: "audit", key: "nav.audit", Icon: ScrollText },
 ];
 
 const Badge = ({ v }: { v: string }) => <span className={`badge badge-${v}`}>{v}</span>;
@@ -161,7 +161,7 @@ export default function App() {
         <aside className="sidebar">
           {PAGES.map((p) => (
             <div key={p.id} className={`navlink ${page === p.id ? "active" : ""}`} onClick={() => setPage(p.id)}>
-              {t(p.key)}
+              <p.Icon size={17} /> {t(p.key)}
             </div>
           ))}
         </aside>
@@ -855,8 +855,8 @@ function BackupPanel() {
   );
 }
 
-const CAPS = ["reveal", "checkout", "list", "rotate", "admin"] as const;
-const ENVS = ["dev", "staging", "prod"] as const;
+// Non-admin operational capabilities — everything an agent needs day-to-day.
+const STANDARD_CAPS = ["reveal", "checkout", "list", "rotate"];
 
 // Scoped per-agent tokens (B3): create a token bound to an agent name + a
 // capability/environment/tag scope. Plaintext is shown once on creation.
@@ -864,28 +864,24 @@ function AgentTokensPanel() {
   const { t } = usePrefs();
   const { data, reload } = useList(() => api.agentTokens(), []);
   const [name, setName] = useState("");
-  const [caps, setCaps] = useState<string[]>(["list"]);
-  const [envs, setEnvs] = useState<string[]>([]);
+  const [role, setRole] = useState<"standard" | "root">("standard");
   const [tags, setTags] = useState("");
   const [days, setDays] = useState("");
   const [plaintext, setPlaintext] = useState("");
   const [msg, setMsg] = useState("");
-
-  const toggle = (arr: string[], set: (v: string[]) => void, v: string) =>
-    set(arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
 
   const create = async () => {
     setMsg(""); setPlaintext("");
     try {
       const r = await api.createAgentToken({
         name,
-        capabilities: caps,
-        environments: envs,
+        capabilities: role === "root" ? [...STANDARD_CAPS, "admin"] : STANDARD_CAPS,
+        environments: [],
         target_tags: tags ? tags.split(",").map((s) => s.trim()).filter(Boolean) : [],
         expires_at: days ? new Date(Date.now() + Number(days) * 864e5).toISOString() : null,
       });
       setPlaintext(r.token);
-      setName(""); setCaps(["list"]); setEnvs([]); setTags(""); setDays("");
+      setName(""); setRole("standard"); setTags(""); setDays("");
       reload();
     } catch (e: any) { setMsg(e.message); }
   };
@@ -907,29 +903,16 @@ function AgentTokensPanel() {
 
       <label>{t("atok.name")}</label>
       <input value={name} onChange={(e) => setName(e.target.value)} placeholder="claude-code-prod" />
-      <label>{t("atok.caps")}</label>
-      <div className="chips">
-        {CAPS.map((c) => (
-          <button key={c} className={caps.includes(c) ? "on" : ""} onClick={() => toggle(caps, setCaps, c)}>{c}</button>
-        ))}
-      </div>
-      <div className="toolbar" style={{ marginTop: 6 }}>
-        <button className="btn btn-sm" onClick={() => { setCaps(["reveal", "checkout", "list", "rotate"]); setEnvs([]); }}>{t("atok.preset")}</button>
-        <span className="muted">{t("atok.presetHint")}</span>
-      </div>
-      {caps.includes("admin") && <div className="risk risk-high" style={{ marginTop: 8 }}>{t("atok.adminWarn")}</div>}
-      <label>{t("atok.envs")}</label>
-      <div className="chips">
-        {ENVS.map((e) => (
-          <button key={e} className={envs.includes(e) ? "on" : ""} onClick={() => toggle(envs, setEnvs, e)}>{e}</button>
-        ))}
-      </div>
+      <label>{t("atok.access")}</label>
+      <Seg<"standard" | "root"> value={role} onChange={setRole} options={[["standard", t("atok.roleStandard")], ["root", t("atok.roleRoot")]]} />
+      <div className="muted" style={{ marginTop: 6 }}>{t(role === "root" ? "atok.rootHint" : "atok.standardHint")}</div>
+      {role === "root" && <div className="risk risk-high" style={{ marginTop: 8 }}>{t("atok.adminWarn")}</div>}
       <label>{t("atok.tags")}</label>
       <input value={tags} onChange={(e) => setTags(e.target.value)} placeholder={t("atok.tagsPh")} />
       <label>{t("atok.expiry")}</label>
       <input type="number" min={1} value={days} onChange={(e) => setDays(e.target.value)} placeholder={t("atok.expiryPh")} />
       <div className="toolbar" style={{ marginTop: 12 }}>
-        <button className="btn-primary btn" disabled={!name || caps.length === 0} onClick={create}>{t("atok.create")}</button>
+        <button className="btn-primary btn" disabled={!name} onClick={create}>{t("atok.create")}</button>
         <span className="muted">{msg}</span>
       </div>
 
@@ -965,8 +948,8 @@ function Settings() {
   const save = () => { setConn(url, token); setStatus(t("settings.saved")); };
   const check = async () => {
     setStatus(t("settings.checking"));
-    try { const h = await api.health(); setStatus(`ok — ${h.service} ${h.version}`); }
-    catch (e: any) { setStatus("error: " + e.message); }
+    try { const h = await api.health(); setStatus(`${t("settings.ok")} — ${h.service} ${h.version}`); }
+    catch (e: any) { setStatus(`${t("settings.error")}: ${e.message}`); }
   };
   return (
     <>
