@@ -339,7 +339,7 @@ function Targets() {
           <tbody>
             {data?.targets?.map((tg: any) => (
               <tr key={tg.id}>
-                <td>{tg.name}<div className="muted mono">{short(tg.id)}</div></td>
+                <td>{tg.name}<div className="muted mono" style={{ wordBreak: "break-all" }}>{tg.id}</div></td>
                 <td>{tg.type}</td>
                 <td className="mono">{tg.username}@{tg.host}:{tg.port}</td>
                 <td><Badge v={tg.environment} /></td>
@@ -395,7 +395,7 @@ function QuickAdd({ onDone }: { onDone: () => void }) {
         </div>
       </div>
       <label>{t("quickadd.secret")}</label>
-      <textarea value={f.secret} onChange={(e) => set("secret", e.target.value)} placeholder={t("creds.fakeHint")} />
+      <textarea value={f.secret} onChange={(e) => set("secret", e.target.value)} />
       {err && <div className="err">{err}</div>}
       <div style={{ marginTop: 12 }}>
         <button className="btn-primary btn" disabled={!f.name || !f.host || !f.username || !f.secret} onClick={submit}>{t("quickadd.create")}</button>
@@ -444,7 +444,7 @@ function Credentials() {
           </div>
         </div>
         <label>{t("creds.secret")} {form.type === "ssh_private_key" && t("creds.sshHint")}</label>
-        <textarea value={form.secret_value} onChange={(e) => setForm({ ...form, secret_value: e.target.value })} placeholder={t("creds.fakeHint")} />
+        <textarea value={form.secret_value} onChange={(e) => setForm({ ...form, secret_value: e.target.value })} />
         <label>{t("creds.metadata")}</label>
         <input value={form.metadata} onChange={(e) => setForm({ ...form, metadata: e.target.value })} placeholder={t("creds.metadataHint")} />
         {fErr && <div className="err">{fErr}</div>}
@@ -464,7 +464,7 @@ function Credentials() {
           <tbody>
             {data?.credentials?.map((c: any) => (
               <tr key={c.id}>
-                <td>{c.name}<div className="muted mono">{short(c.id)}</div></td>
+                <td>{c.name}<div className="muted mono" style={{ wordBreak: "break-all" }}>{c.id}</div></td>
                 <td>{c.type}</td>
                 <td><Badge v={c.status} /></td>
                 <td>{c.reveal_count_since_rotation}</td>
@@ -612,7 +612,7 @@ function Reveals() {
           <tbody>
             {data?.reveals?.map((r: any) => (
               <tr key={r.id}>
-                <td className="mono">{short(r.credential_id)}</td>
+                <td className="mono" style={{ wordBreak: "break-all" }}>{r.credential_id}</td>
                 <td>{r.requested_by}</td>
                 <td>{r.purpose}</td>
                 <td>{time(r.revealed_at)}</td>
@@ -643,7 +643,7 @@ function Checkouts() {
           <tbody>
             {data?.checkouts?.map((c: any) => (
               <tr key={c.id}>
-                <td className="mono">{short(c.target_id)}</td>
+                <td className="mono" style={{ wordBreak: "break-all" }}>{c.target_id}</td>
                 <td>{c.mode}</td>
                 <td>{c.purpose}</td>
                 <td className="mono">{c.ssh_command || "—"}</td>
@@ -682,7 +682,7 @@ function Rotation() {
           <tbody>
             {data?.jobs?.map((j: any) => (
               <tr key={j.id}>
-                <td className="mono">{short(j.credential_id)}</td>
+                <td className="mono" style={{ wordBreak: "break-all" }}>{j.credential_id}</td>
                 <td>{j.reason}</td>
                 <td><Badge v={j.status} /></td>
                 <td>{time(j.created_at)}</td>
@@ -731,7 +731,7 @@ function Requests() {
           <tbody>
             {data?.requests?.map((r: any) => (
               <tr key={r.id}>
-                <td className="mono">{short(r.credential_id)}</td>
+                <td className="mono" style={{ wordBreak: "break-all" }}>{r.credential_id}</td>
                 <td>{r.requested_by}</td>
                 <td>{r.purpose}</td>
                 <td><Badge v={r.status} /></td>
@@ -769,7 +769,7 @@ function Audit() {
                 <td>{time(l.timestamp)}</td>
                 <td>{l.actor}</td>
                 <td className="mono">{l.action}</td>
-                <td className="mono">{l.resource_type}/{short(l.resource_id)}</td>
+                <td className="mono" style={{ wordBreak: "break-all" }}>{l.resource_type}/{l.resource_id}</td>
                 <td><Badge v={l.risk_level} /></td>
                 <td>{l.purpose || "—"}</td>
               </tr>
