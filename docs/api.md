@@ -59,13 +59,29 @@ Base URL: `http://127.0.0.1:4747` · Auth: `Authorization: Bearer <token>`
 ## Audit
 - `GET /audit-logs?limit=&actor=&action=&risk_level=` → `{ logs: AuditLog[] }` (newest first, redacted)
 
+## Agent tokens (scoped auth, B3)
+Layer scoped tokens on top of the full-power root token to limit an individual
+agent's blast radius. Requires the `admin` capability (the root token, or an
+`admin` scoped token). See [security-model.md](./security-model.md#scoped-agent-tokens-b3).
+- `POST /agent-tokens` `{ name, capabilities:("reveal"|"checkout"|"list"|"rotate"|"admin")[], environments?, target_tags?, target_ids?, expires_at? }`
+  → `201 { ...AgentToken, token }` — `token` is the plaintext (`apat_…`), returned **once**, never stored.
+- `GET /agent-tokens` → `{ tokens: AgentTokenPublic[] }` (metadata only; never the hash)
+- `POST /agent-tokens/:id/revoke` → `AgentTokenPublic`
+
+Every route requires a capability; `reveal`/`checkout` also check the target's
+environment + tags against the token's whitelist (empty = no restriction). A
+miss returns `403 { error:{ code:"forbidden", message:"token not allowed to <cap> <env>" } }`.
+Audit `actor` is the token's bound agent name (root = `"root"`), not the
+self-reported `requested_by`.
+
 ## Maintenance (automatic, on a 30s timer + startup)
 - expired checkouts/reveals swept; due `next_rotation_due_at` → scheduled rotation jobs;
   auto-rotation runs eligible jobs; terminal reveals/checkouts older than
   `AGENTPASS_RETENTION_DAYS` (default 30) pruned. `SIGINT`/`SIGTERM` → graceful shutdown.
 
 ## Errors
-`{ "error": { "code": string, "message": string } }` with status 400/401/404/409/500/501.
+`{ "error": { "code": string, "message": string } }` with status 400/401/403/404/409/500/501.
+`403 forbidden` = a scoped token lacks the capability/environment/target for the route.
 
 ## curl examples
 ```bash
