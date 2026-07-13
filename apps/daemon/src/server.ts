@@ -4,12 +4,13 @@ import Fastify, { type FastifyInstance } from "fastify";
 import cors from "@fastify/cors";
 import fastifyStatic from "@fastify/static";
 import { z, ZodError, type ZodTypeAny } from "zod";
-import { AppError, type AgentPassCore } from "@agentpass/core";
+import { AppError, forbidden, notFound, type AgentPassCore } from "@agentpass/core";
 import { decryptPayload, encryptPayload, type SyncEngine } from "@agentpass/sync";
 import {
   MAX_SECRET_BYTES,
   auditQuerySchema,
   checkoutSchema,
+  createAgentTokenSchema,
   createCredentialSchema,
   createRotationJobSchema,
   createTargetSchema,
@@ -23,8 +24,55 @@ import {
   updateCredentialSchema,
   updateRotationPolicySchema,
   updateTargetSchema,
+  type AgentToken,
+  type Capability,
+  type RevealInput,
 } from "@agentpass/shared";
 import type { DaemonConfig } from "./config.js";
+
+/** The authenticated caller resolved by the onRequest hook. root = full-power
+ * ~/.agentpass/token; token = a scoped AgentToken whose scope is enforced. */
+interface AgentIdentity {
+  name: string;
+  root: boolean;
+  token: AgentToken | null;
+}
+
+declare module "fastify" {
+  interface FastifyRequest {
+    agent: AgentIdentity;
+  }
+}
+
+/**
+ * Capability required per route (method + route pattern). Anything not listed
+ * falls through to "admin" — a deny-by-default that is safe because the root
+ * token bypasses this map entirely; only opt-in scoped tokens are constrained.
+ */
+const ROUTE_CAP: Record<string, Capability> = {
+  "GET /events": "list",
+  "GET /targets": "list",
+  "GET /targets/:id": "list",
+  "GET /credentials": "list",
+  "GET /credentials/:id": "list",
+  "POST /credentials/:id/reveal": "reveal",
+  "GET /reveals": "list",
+  "GET /reveals/:id": "list",
+  "POST /reveals/:id/revoke": "reveal",
+  "GET /reveal-requests": "list",
+  "GET /reveal-requests/:id": "list",
+  "POST /targets/:id/checkout": "checkout",
+  "GET /checkouts": "list",
+  "GET /checkouts/:id": "list",
+  "POST /checkouts/:id/revoke": "checkout",
+  "GET /rotation-policies": "list",
+  "GET /rotation-jobs": "list",
+  "POST /credentials/:id/rotation-jobs": "rotate",
+  "POST /rotation-jobs/:id/mark-success": "rotate",
+  "POST /rotation-jobs/:id/mark-failed": "rotate",
+  "POST /rotation-jobs/run-auto": "rotate",
+  "GET /audit-logs": "list",
+};
 
 const parse = <T>(schema: ZodTypeAny, data: unknown): T => {
   try {
@@ -42,19 +90,35 @@ export async function buildServer(core: AgentPassCore, engine: SyncEngine, cfg: 
   const app = Fastify({ logger: false, bodyLimit: MAX_SECRET_BYTES + 512 * 1024 });
   await app.register(cors, { origin: true }); // UI dev server is same-machine only
 
-  // ---- local auth token (skip health + static UI) ----
+  // ---- auth: root token (full power) or scoped AgentToken (B3) ----
   const expected = Buffer.from(`Bearer ${cfg.token}`);
-  const tokenOk = (auth: string | undefined): boolean => {
+  const rootOk = (auth: string | undefined): boolean => {
     if (!auth) return false;
     const got = Buffer.from(auth);
     return got.length === expected.length && timingSafeEqual(got, expected);
   };
+  const bearer = (auth: string | undefined): string | null =>
+    auth?.startsWith("Bearer ") ? auth.slice(7) : null;
+
   app.addHook("onRequest", async (req, reply) => {
     const url = req.url.split("?")[0] ?? "";
     if (url === "/health" || url === "/" || url.startsWith("/ui")) return;
-    if (!tokenOk(req.headers["authorization"])) {
-      reply.code(401).send({ error: { code: "unauthorized", message: "missing or invalid token" } });
+
+    const auth = req.headers["authorization"];
+    if (rootOk(auth)) {
+      req.agent = { name: "root", root: true, token: null };
+      return;
     }
+    const raw = bearer(auth);
+    const token = raw ? core.tokens.authenticate(raw) : null;
+    if (!token) {
+      reply.code(401).send({ error: { code: "unauthorized", message: "missing or invalid token" } });
+      return;
+    }
+    req.agent = { name: token.name, root: false, token };
+    // Capability gate (env/tag scoping is enforced per-target in reveal/checkout).
+    const cap = ROUTE_CAP[`${req.method} ${req.routeOptions.url ?? url}`] ?? "admin";
+    core.tokens.authorize(token, { capability: cap }); // throws 403 forbidden
   });
 
   app.setErrorHandler((err, _req, reply) => {
@@ -126,9 +190,24 @@ export async function buildServer(core: AgentPassCore, engine: SyncEngine, cfg: 
   });
 
   // ---- reveal (HIGH RISK) ----
-  app.post<{ Params: { id: string } }>("/credentials/:id/reveal", async (req) =>
-    core.reveal(req.params.id, parse(revealSchema, req.body)),
-  );
+  app.post<{ Params: { id: string } }>("/credentials/:id/reveal", async (req) => {
+    const input = parse<RevealInput>(revealSchema, req.body);
+    const { token } = req.agent;
+    if (token) {
+      const target = input.target_id ? core.getTarget(input.target_id) : null;
+      // A token restricted to specific environments must reveal against a target
+      // so the environment can actually be checked — no target = no proof.
+      if (!target && token.environments.length > 0)
+        throw forbidden("scoped token must pass target_id so its environment can be verified");
+      core.tokens.authorize(token, {
+        capability: "reveal",
+        env: target?.environment ?? null,
+        targetTags: target?.tags,
+        targetId: target?.id ?? null,
+      });
+    }
+    return core.reveal(req.params.id, input, req.agent.name);
+  });
   app.get("/reveals", async () => ({ reveals: core.listReveals() }));
   app.get<{ Params: { id: string } }>("/reveals/:id", async (req) => core.getReveal(req.params.id));
   app.post<{ Params: { id: string } }>("/reveals/:id/revoke", async (req) => core.revokeReveal(req.params.id));
@@ -146,9 +225,19 @@ export async function buildServer(core: AgentPassCore, engine: SyncEngine, cfg: 
   );
 
   // ---- checkout (RECOMMENDED) ----
-  app.post<{ Params: { id: string } }>("/targets/:id/checkout", async (req) =>
-    core.checkout(req.params.id, parse(checkoutSchema, req.body)),
-  );
+  app.post<{ Params: { id: string } }>("/targets/:id/checkout", async (req) => {
+    const { token } = req.agent;
+    if (token) {
+      const target = core.getTarget(req.params.id); // 404 if missing
+      core.tokens.authorize(token, {
+        capability: "checkout",
+        env: target.environment,
+        targetTags: target.tags,
+        targetId: target.id,
+      });
+    }
+    return core.checkout(req.params.id, parse(checkoutSchema, req.body), req.agent.name);
+  });
   app.get("/checkouts", async () => ({ checkouts: core.listCheckouts() }));
   app.get<{ Params: { id: string } }>("/checkouts/:id", async (req) => core.getCheckout(req.params.id));
   app.post<{ Params: { id: string } }>("/checkouts/:id/revoke", async (req) => core.revokeCheckout(req.params.id));
@@ -180,6 +269,19 @@ export async function buildServer(core: AgentPassCore, engine: SyncEngine, cfg: 
   app.get("/audit-logs", async (req) => ({
     logs: core.listAudit(auditQuerySchema.parse(req.query ?? {})),
   }));
+
+  // ---- scoped agent tokens (B3, admin only via ROUTE_CAP default) ----
+  app.post("/agent-tokens", async (req, reply) => {
+    const { token, plaintext } = core.tokens.create(parse(createAgentTokenSchema, req.body));
+    // Plaintext is returned exactly once and never persisted.
+    return reply.code(201).send({ ...token, token: plaintext });
+  });
+  app.get("/agent-tokens", async () => ({ tokens: core.tokens.list() }));
+  app.post<{ Params: { id: string } }>("/agent-tokens/:id/revoke", async (req) => {
+    const t = core.tokens.revoke(req.params.id);
+    if (!t) throw notFound("agent_token", req.params.id);
+    return t;
+  });
 
   // ---- sync (E2E-encrypted cross-device sync) ----
   const webdavCfg = z.object({ url: z.string().url(), username: z.string(), password: z.string() });

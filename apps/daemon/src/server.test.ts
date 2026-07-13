@@ -90,6 +90,88 @@ describe("daemon HTTP", () => {
     expect(res.json().error.code).toBe("validation_error");
   });
 
+  // ---- B3: scoped agent tokens ----
+  const authWith = (t: string) => ({ authorization: `Bearer ${t}` });
+  const mkToken = async (body: unknown) => (await post("/agent-tokens", body)).json();
+
+  it("creates a scoped token: plaintext returned once, list omits the hash", async () => {
+    const created = await mkToken({ name: "ci", capabilities: ["list"] });
+    expect(created.token).toMatch(/^apat_/);
+    expect(created.token_hash).toBeUndefined();
+
+    const list = (await app.inject({ method: "GET", url: "/agent-tokens", headers: auth })).json();
+    expect(list.tokens).toHaveLength(1);
+    expect(list.tokens[0].name).toBe("ci");
+    expect(list.tokens[0].token_hash).toBeUndefined();
+    expect(JSON.stringify(list.tokens[0])).not.toContain(created.token);
+  });
+
+  it("scoped token: allowed capability passes, missing capability is 403", async () => {
+    const { token } = await mkToken({ name: "reader", capabilities: ["list"] });
+    const ok = await app.inject({ method: "GET", url: "/targets", headers: authWith(token) });
+    expect(ok.statusCode).toBe(200);
+    // create target requires admin → forbidden
+    const denied = await app.inject({
+      method: "POST", url: "/targets", headers: authWith(token),
+      payload: { name: "x", type: "ssh", host: "h", username: "u", credential_ids: [] },
+    });
+    expect(denied.statusCode).toBe(403);
+    expect(denied.json().error.code).toBe("forbidden");
+  });
+
+  it("scoped token: reveal allowed for whitelisted env, 403 for another env", async () => {
+    const cred = (await post("/credentials", { name: "pw", type: "password", secret_value: "S3CR3T" })).json();
+    const devT = (await post("/targets", {
+      name: "d", type: "ssh", host: "h", port: 22, username: "u", environment: "dev", credential_ids: [cred.id],
+    })).json();
+    const prodT = (await post("/targets", {
+      name: "p", type: "ssh", host: "h", port: 22, username: "u", environment: "prod", credential_ids: [cred.id],
+    })).json();
+    const { token } = await mkToken({ name: "dev-agent", capabilities: ["reveal"], environments: ["dev"] });
+
+    const okRes = await app.inject({
+      method: "POST", url: `/credentials/${cred.id}/reveal`, headers: authWith(token),
+      payload: { requested_by: "self", purpose: "p", ttl_seconds: 60, target_id: devT.id },
+    });
+    expect(okRes.statusCode).toBe(200);
+    expect(okRes.json().secret_value).toBe("S3CR3T");
+
+    const prodRes = await app.inject({
+      method: "POST", url: `/credentials/${cred.id}/reveal`, headers: authWith(token),
+      payload: { requested_by: "self", purpose: "p", ttl_seconds: 60, target_id: prodT.id },
+    });
+    expect(prodRes.statusCode).toBe(403);
+    expect(prodRes.json().error.message).toContain("prod");
+  });
+
+  it("audit actor is the token name, not requested_by", async () => {
+    const cred = (await post("/credentials", { name: "pw", type: "password", secret_value: "S" })).json();
+    const t = (await post("/targets", {
+      name: "d", type: "ssh", host: "h", port: 22, username: "u", environment: "dev", credential_ids: [cred.id],
+    })).json();
+    const { token } = await mkToken({ name: "billing-agent", capabilities: ["reveal"] });
+    await app.inject({
+      method: "POST", url: `/credentials/${cred.id}/reveal`, headers: authWith(token),
+      payload: { requested_by: "lies", purpose: "p", ttl_seconds: 60, target_id: t.id },
+    });
+    const logs = (await app.inject({ method: "GET", url: "/audit-logs", headers: auth })).json().logs;
+    const reveal = logs.find((l: { action: string }) => l.action === "reveal_secret");
+    expect(reveal.actor).toBe("billing-agent");
+  });
+
+  it("rejects a revoked or expired token", async () => {
+    const created = await mkToken({ name: "temp", capabilities: ["list"] });
+    await post(`/agent-tokens/${created.id}/revoke`, {});
+    const revoked = await app.inject({ method: "GET", url: "/targets", headers: authWith(created.token) });
+    expect(revoked.statusCode).toBe(401);
+
+    const expired = await mkToken({
+      name: "old", capabilities: ["list"], expires_at: "2000-01-01T00:00:00.000Z",
+    });
+    const res = await app.inject({ method: "GET", url: "/targets", headers: authWith(expired.token) });
+    expect(res.statusCode).toBe(401);
+  });
+
   it("gates reveal behind approval when the policy requires it", async () => {
     const pol = (await post("/rotation-policies", { name: "gated", approval_required: true, rotate_after_reveal: false })).json();
     const cred = (await post("/credentials", { name: "pw", type: "password", secret_value: "FAKE", rotation_policy_id: pol.id })).json();
