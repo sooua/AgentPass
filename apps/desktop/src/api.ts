@@ -58,4 +58,7 @@ export const api = {
   syncRestore: (id: string) => req("POST", `/sync/restore/${id}`),
   exportBackup: (passphrase: string) => req("POST", "/export", { passphrase }),
   importBackup: (passphrase: string, blob: string) => req("POST", "/import", { passphrase, blob }),
+  agentTokens: () => req("GET", "/agent-tokens"),
+  createAgentToken: (b: unknown) => req("POST", "/agent-tokens", b),
+  revokeAgentToken: (id: string) => req("POST", `/agent-tokens/${id}/revoke`),
 };

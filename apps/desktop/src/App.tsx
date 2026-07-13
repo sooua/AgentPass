@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState } from "react";
-import { Minus, Moon, RefreshCw, Settings as SettingsIcon, Sun, X } from "lucide-react";
+import { Copy, KeyRound, Minus, Moon, RefreshCw, Settings as SettingsIcon, Sun, Trash2, X } from "lucide-react";
 import { api, getToken, getUrl, setConn } from "./api.js";
 import { usePrefs, type Lang, type Theme } from "./i18n.js";
 import { SyncModal } from "./SyncModal.js";
@@ -834,6 +834,102 @@ function BackupPanel() {
   );
 }
 
+const CAPS = ["reveal", "checkout", "list", "rotate", "admin"] as const;
+const ENVS = ["dev", "staging", "prod"] as const;
+
+// Scoped per-agent tokens (B3): create a token bound to an agent name + a
+// capability/environment/tag scope. Plaintext is shown once on creation.
+function AgentTokensPanel() {
+  const { t } = usePrefs();
+  const { data, reload } = useList(() => api.agentTokens(), []);
+  const [name, setName] = useState("");
+  const [caps, setCaps] = useState<string[]>(["list"]);
+  const [envs, setEnvs] = useState<string[]>([]);
+  const [tags, setTags] = useState("");
+  const [days, setDays] = useState("");
+  const [plaintext, setPlaintext] = useState("");
+  const [msg, setMsg] = useState("");
+
+  const toggle = (arr: string[], set: (v: string[]) => void, v: string) =>
+    set(arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
+
+  const create = async () => {
+    setMsg(""); setPlaintext("");
+    try {
+      const r = await api.createAgentToken({
+        name,
+        capabilities: caps,
+        environments: envs,
+        target_tags: tags ? tags.split(",").map((s) => s.trim()).filter(Boolean) : [],
+        expires_at: days ? new Date(Date.now() + Number(days) * 864e5).toISOString() : null,
+      });
+      setPlaintext(r.token);
+      setName(""); setCaps(["list"]); setEnvs([]); setTags(""); setDays("");
+      reload();
+    } catch (e: any) { setMsg(e.message); }
+  };
+
+  return (
+    <div className="card">
+      <h3><KeyRound size={16} style={{ verticalAlign: "-3px", marginRight: 6 }} />{t("atok.title")}</h3>
+      <div className="muted" style={{ marginBottom: 10 }}>{t("atok.desc")}</div>
+
+      {plaintext && (
+        <div className="risk risk-good" style={{ marginBottom: 12, wordBreak: "break-all" }}>
+          <div style={{ marginBottom: 6 }}>{t("atok.once")}</div>
+          <code>{plaintext}</code>
+          <button className="btn" style={{ marginLeft: 8 }} onClick={() => void navigator.clipboard.writeText(plaintext)}>
+            <Copy size={14} /> {t("atok.copy")}
+          </button>
+        </div>
+      )}
+
+      <label>{t("atok.name")}</label>
+      <input value={name} onChange={(e) => setName(e.target.value)} placeholder="claude-code-prod" />
+      <label>{t("atok.caps")}</label>
+      <div className="chips">
+        {CAPS.map((c) => (
+          <button key={c} className={caps.includes(c) ? "on" : ""} onClick={() => toggle(caps, setCaps, c)}>{c}</button>
+        ))}
+      </div>
+      <label>{t("atok.envs")}</label>
+      <div className="chips">
+        {ENVS.map((e) => (
+          <button key={e} className={envs.includes(e) ? "on" : ""} onClick={() => toggle(envs, setEnvs, e)}>{e}</button>
+        ))}
+      </div>
+      <label>{t("atok.tags")}</label>
+      <input value={tags} onChange={(e) => setTags(e.target.value)} placeholder={t("atok.tagsPh")} />
+      <label>{t("atok.expiry")}</label>
+      <input type="number" min={1} value={days} onChange={(e) => setDays(e.target.value)} placeholder={t("atok.expiryPh")} />
+      <div className="toolbar" style={{ marginTop: 12 }}>
+        <button className="btn-primary btn" disabled={!name || caps.length === 0} onClick={create}>{t("atok.create")}</button>
+        <span className="muted">{msg}</span>
+      </div>
+
+      {data?.tokens?.length > 0 && (
+        <table style={{ marginTop: 14 }}>
+          <thead><tr><th>{t("atok.name")}</th><th>{t("atok.caps")}</th><th>{t("atok.scope")}</th><th></th></tr></thead>
+          <tbody>
+            {data.tokens.map((tk: any) => (
+              <tr key={tk.id} style={tk.revoked ? { opacity: 0.5 } : undefined}>
+                <td>{tk.name}{tk.revoked ? ` (${t("atok.revoked")})` : ""}</td>
+                <td>{tk.capabilities.join(", ")}</td>
+                <td className="muted">{[tk.environments.join("/") || "*", (tk.target_tags.length ? `#${tk.target_tags.join(",#")}` : "")].filter(Boolean).join(" ")}</td>
+                <td>{!tk.revoked && (
+                  <button className="btn" title={t("atok.revoke")} onClick={async () => { await api.revokeAgentToken(tk.id); reload(); }}>
+                    <Trash2 size={14} />
+                  </button>
+                )}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
 function Settings() {
   const { t, lang, setLang } = usePrefs();
   const [url, setUrl] = useState(getUrl());
@@ -860,6 +956,7 @@ function Settings() {
         <Seg<Lang> value={lang} onChange={setLang} options={[["en", "English"], ["zh", "中文"]]} />
       </div>
       <LockCard />
+      <AgentTokensPanel />
       <div className="card">
         <h3>{t("settings.connTitle")}</h3>
         <label>{t("settings.url")}</label>
