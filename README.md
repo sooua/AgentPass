@@ -140,6 +140,16 @@ agentpass deliberately supports revealing plaintext to agents — that is a prod
 
 First stable release (`v1.0.0`). Auto-rotation ships disabled by default — scheduled and after-reveal jobs are created and left for manual completion until a gateway provider installs the new secret on the target. The `ssh_agent_socket` checkout mode is not yet implemented; `temp_key_file` is the default and only offered mode.
 
+## Brand
+
+<div align="center">
+<img src="brand/logo/agentpass-terracotta.svg" width="72" alt="terracotta" />&nbsp;&nbsp;&nbsp;
+<img src="brand/logo/agentpass-light.svg" width="72" alt="light" />&nbsp;&nbsp;&nbsp;
+<img src="brand/logo/agentpass-dark.svg" width="72" alt="dark" />
+</div>
+
+Logo variants (terracotta / light / dark) and usage guidance in [`brand/logo/`](brand/logo/).
+
 ## License
 
 [MIT](LICENSE) © 2026 sooua
