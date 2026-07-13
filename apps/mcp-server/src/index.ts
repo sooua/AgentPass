@@ -1,3 +1,4 @@
+import { createRequire } from "node:module";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
@@ -5,7 +6,9 @@ import { createClient } from "./client.js";
 
 const client = createClient();
 
-const server = new McpServer({ name: "agentpass", version: "0.1.0" });
+// Version comes from package.json so it tracks the release automatically.
+const { version } = createRequire(import.meta.url)("../package.json") as { version: string };
+const server = new McpServer({ name: "agentpass", version });
 
 const ok = (data: unknown) => ({
   content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }],

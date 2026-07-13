@@ -1,4 +1,5 @@
 import { timingSafeEqual } from "node:crypto";
+import { createRequire } from "node:module";
 import { join } from "node:path";
 import Fastify, { type FastifyInstance } from "fastify";
 import cors from "@fastify/cors";
@@ -29,6 +30,10 @@ import {
   type RevealInput,
 } from "@agentpass/shared";
 import type { DaemonConfig } from "./config.js";
+
+// Single source of truth for the version — read from package.json so it can't
+// drift from the release. Resolves relative to this file in both dist and src.
+const { version: VERSION } = createRequire(import.meta.url)("../package.json") as { version: string };
 
 /** The authenticated caller resolved by the onRequest hook. root = full-power
  * ~/.agentpass/token; token = a scoped AgentToken whose scope is enforced. */
@@ -183,7 +188,7 @@ export async function buildServer(core: AgentPassCore, engine: SyncEngine, cfg: 
   app.get("/health", async () => ({
     status: "ok",
     service: "agentpass",
-    version: "0.1.0",
+    version: VERSION,
     stats: core.stats(),
   }));
 
