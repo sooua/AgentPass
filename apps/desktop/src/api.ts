@@ -10,9 +10,15 @@ export const setConn = (url: string, token: string) => {
 };
 
 async function req(method: string, path: string, body?: unknown): Promise<any> {
+  // Only send a JSON content-type when there's actually a body. A body-less
+  // request (DELETE, revoke, approve…) with content-type: application/json makes
+  // Fastify try to parse an empty body and 500 with a masked "internal error".
   const res = await fetch(getUrl() + path, {
     method,
-    headers: { authorization: `Bearer ${getToken()}`, "content-type": "application/json" },
+    headers: {
+      authorization: `Bearer ${getToken()}`,
+      ...(body !== undefined ? { "content-type": "application/json" } : {}),
+    },
     ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
   });
   const text = await res.text();

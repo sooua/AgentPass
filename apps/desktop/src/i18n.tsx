@@ -107,6 +107,7 @@ const en: Record<string, string> = {
   "rotation.mark": "Mark complete",
   "rotation.prompt": "New rotated secret value",
   "rotation.empty": "No rotation jobs.",
+  "rotation.scheduled": "✓ Rotation job created — open the Rotation page to enter the new secret and finish",
 
   "audit.title": "Audit logs",
   "audit.sub": "Redacted, append-only. Newest first.",
@@ -341,6 +342,7 @@ const zh: Record<string, string> = {
   "rotation.mark": "标记完成",
   "rotation.prompt": "轮换后的新密钥值",
   "rotation.empty": "暂无轮换任务。",
+  "rotation.scheduled": "✓ 已创建轮换任务 —— 到轮换页填入新密钥即可完成",
 
   "audit.title": "审计日志",
   "audit.sub": "已脱敏，仅追加。最新在前。",

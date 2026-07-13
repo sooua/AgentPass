@@ -346,7 +346,7 @@ function Targets() {
                 <td>{tg.credential_ids.length}</td>
                 <td className="toolbar">
                   <button className="btn-primary btn btn-sm" onClick={() => setCheckoutTarget(tg)}>{t("common.checkout")}</button>
-                  <button className="btn btn-sm" onClick={async () => { await api.deleteTarget(tg.id); reload(); }}>{t("common.delete")}</button>
+                  <button className="btn btn-sm" onClick={async () => { try { setFErr(""); await api.deleteTarget(tg.id); reload(); } catch (e: any) { setFErr(e.message); } }}>{t("common.delete")}</button>
                 </td>
               </tr>
             ))}
@@ -413,7 +413,15 @@ function Credentials() {
   const { data, err, reload } = useList(() => api.credentials({ q: dq || undefined, status: status || undefined }), [dq, status]);
   const [form, setForm] = useState({ name: "", type: "password", secret_value: "", metadata: "" });
   const [fErr, setFErr] = useState("");
+  const [note, setNote] = useState("");
   const [revealCred, setRevealCred] = useState<any>(null);
+
+  // Auto-dismiss the rotation-scheduled confirmation after a few seconds.
+  useEffect(() => {
+    if (!note) return;
+    const id = setTimeout(() => setNote(""), 5000);
+    return () => clearTimeout(id);
+  }, [note]);
 
   const submit = async () => {
     setFErr("");
@@ -457,6 +465,7 @@ function Credentials() {
           <option value="">{t("common.all")}</option><option>active</option><option>rotation_required</option><option>expired</option><option>revoked</option>
         </select>
       </div>
+      {note && <div className="risk risk-good">{note}</div>}
       {err && <div className="err">{err}</div>}
       <div className="card">
         <table>
@@ -471,8 +480,8 @@ function Credentials() {
                 <td>{time(c.last_rotated_at)}</td>
                 <td className="toolbar">
                   <button className="btn-danger btn btn-sm" onClick={() => setRevealCred(c)}>{t("common.reveal")}</button>
-                  <button className="btn btn-sm" onClick={async () => { await api.scheduleRotation(c.id, { reason: "manual" }); reload(); }}>{t("common.rotate")}</button>
-                  <button className="btn btn-sm" onClick={async () => { await api.deleteCredential(c.id); reload(); }}>{t("common.delete")}</button>
+                  <button className="btn btn-sm" onClick={async () => { try { setFErr(""); setNote(""); await api.scheduleRotation(c.id, { reason: "manual" }); setNote(t("rotation.scheduled")); reload(); } catch (e: any) { setFErr(e.message); } }}>{t("common.rotate")}</button>
+                  <button className="btn btn-sm" onClick={async () => { try { setFErr(""); await api.deleteCredential(c.id); reload(); } catch (e: any) { setFErr(e.message); } }}>{t("common.delete")}</button>
                 </td>
               </tr>
             ))}
@@ -666,11 +675,14 @@ function Rotation() {
   const { data, err, reload } = useList(() => api.rotationJobs(), []);
   const [jobId, setJobId] = useState<string | null>(null);
   const [secret, setSecret] = useState("");
+  const [mErr, setMErr] = useState("");
   const submit = async () => {
     if (!secret || !jobId) return;
-    await api.markRotationSuccess(jobId, { new_secret_value: secret });
-    setJobId(null); setSecret("");
-    reload();
+    try {
+      await api.markRotationSuccess(jobId, { new_secret_value: secret });
+      setJobId(null); setSecret("");
+      reload();
+    } catch (e: any) { setMErr(e.message); }
   };
   return (
     <>
@@ -687,7 +699,7 @@ function Rotation() {
                 <td><Badge v={j.status} /></td>
                 <td>{time(j.created_at)}</td>
                 <td>{time(j.completed_at)}</td>
-                <td>{(j.status === "pending" || j.status === "running") && <button className="btn-primary btn btn-sm" onClick={() => { setSecret(""); setJobId(j.id); }}>{t("rotation.mark")}</button>}</td>
+                <td>{(j.status === "pending" || j.status === "running") && <button className="btn-primary btn btn-sm" onClick={() => { setSecret(""); setMErr(""); setJobId(j.id); }}>{t("rotation.mark")}</button>}</td>
               </tr>
             ))}
             {data && !data.jobs?.length && <tr><td colSpan={6} className="empty">{t("rotation.empty")}</td></tr>}
@@ -706,6 +718,7 @@ function Rotation() {
               onKeyDown={(e) => { if (e.key === "Escape") setJobId(null); }}
               style={{ minHeight: 90, fontFamily: "var(--mono, monospace)" }}
             />
+            {mErr && <div className="err">{mErr}</div>}
             <div className="toolbar" style={{ marginTop: 16 }}>
               <button className="btn-primary btn" disabled={!secret.trim()} onClick={submit}>{t("common.confirm")}</button>
               <button className="btn" onClick={() => setJobId(null)}>{t("common.cancel")}</button>
