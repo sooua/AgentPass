@@ -16,3 +16,7 @@ data/
 
 # stray Pencil docs
 *.pen
+
+# signing keys — NEVER commit
+agentpass-signing/
+*.key
