@@ -1,206 +1,145 @@
-# agentpass
+<div align="center">
 
-Local-first credential manager for AI agents (Claude Code, Codex, Cursor Agent).
-It lets agents obtain server login info two ways:
+<img src="brand/lockup-horizontal.svg" alt="agentpass" width="380" />
 
-- **Direct Secret Access** (`reveal_secret`) — plaintext, high-risk, audited,
-  rotation-aware. Fully supported.
-- **Agent Credential Checkout** (`checkout_ssh_access`) — temporary, expiring
-  SSH access, no long-term secret handed to the agent. **Recommended.**
+### Give your AI agents scoped, audited, expiring access to your servers — never a pasted secret.
 
-Manages, audits, and rotates SSH keys, passwords, API tokens, kubeconfigs and DB
-credentials. Local-only daemon, encrypted at rest, redacted logs, adapter-first
-so OpenBao / Infisical / Warpgate / JumpServer can be dropped in later.
+[![Release](https://img.shields.io/github/v/release/sooua/agentpass?sort=semver)](https://github.com/sooua/agentpass/releases)
+[![Build](https://img.shields.io/github/actions/workflow/status/sooua/agentpass/release.yml)](https://github.com/sooua/agentpass/actions/workflows/release.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Platform](https://img.shields.io/badge/desktop-macOS%20%7C%20Windows%20%7C%20Linux-informational)](#install)
 
-> ⚠️ This tool **intentionally** supports revealing plaintext secrets to agents.
-> That is a deliberate product capability — see [docs/security-model.md](docs/security-model.md).
+**English** · [中文](README.zh-CN.md)
 
-## Stack
-pnpm workspace · TypeScript (ESM) · Fastify daemon · MCP TS SDK · `node:sqlite` ·
-Node `crypto` (AES-256-GCM) · Tauri 2 + React/Vite desktop · Vitest.
+</div>
 
-## Layout
+---
+
+**agentpass** is a local-first credential manager built for the age of autonomous coding agents. Claude Code, Codex, and Cursor Agent can log into your servers through it — with a temporary key that expires, not a long-lived secret dumped into a chat log. Every access is scoped to what that agent may touch, attributed to its identity, and written to an append-only audit trail. Nothing leaves your machine.
+
+<div align="center">
+<img src="docs/assets/dashboard.png" alt="agentpass desktop" width="820" />
+</div>
+
+## Why agentpass
+
+Handing an AI agent a raw SSH key or database password is a one-way door: the secret is now in a transcript, a shell history, a model's context. agentpass closes that door. The agent asks for *access*, gets a credential that dies on a timer, and never holds your long-term secret at all.
+
+- **Checkout, not reveal.** The default path issues a temporary, expiring `ssh` command. The private key is materialized locally for the session and wiped on expiry — the agent never receives it.
+- **Least privilege by identity.** Each agent carries a scoped token limited by capability, environment, and target. Overreach is rejected before the request runs, and the audit log names the token, not a self-reported string.
+- **Deliberate high-risk path.** Plaintext reveal still exists for the cases that need it — audited, rotation-aware, and gated behind approval with enforced separation of duties.
+- **Local by default.** SQLite at rest, AES-256-GCM secret blobs, a 0600 master key, OS-level file ACLs, redacted logs. No cloud account, no telemetry.
+
+## Features
+
+| | |
+|---|---|
+| **🔑 Credential checkout** | Temporary, expiring SSH access via the system OpenSSH client. Long-term keys never leave the vault. |
+| **🎫 Scoped agent tokens** | Per-agent tokens bounded by capability × environment × target. One-click "recommended agent token" preset with full operational power and no admin rights. |
+| **👁 Audited reveal** | Plaintext access when you truly need it — every call logged, secrets redacted, rotation triggered by policy. |
+| **✅ Approval with separation of duties** | Gate high-risk reveals behind human approval; a requester can never approve its own request. |
+| **♻️ Rotation** | Rotate after reveal, after N reveals, or on a schedule. Approval-aware manual flow; opt-in auto-rotation. |
+| **🔄 End-to-end encrypted sync** | Cross-device sync over local dir, GitHub Gist, WebDAV, or S3 — secrets are encrypted before they leave the host. |
+| **🧩 Adapter-first** | Clean provider ports so OpenBao, Infisical, Warpgate, or JumpServer can slot in without touching business logic. |
+| **🖥 Native desktop** | Tauri 2 + React app for macOS, Windows, and Linux, with signed in-app updates. |
+
+<div align="center">
+<table>
+<tr>
+<td width="50%"><img src="docs/assets/agent-tokens.png" alt="Scoped agent tokens" /><br/><sub><b>Scoped agent tokens</b> — bound an agent to exactly what it may do.</sub></td>
+<td width="50%"><img src="docs/assets/checkout.png" alt="SSH checkout" /><br/><sub><b>Checkout</b> — an expiring SSH command, no secret handed over.</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/assets/approvals.png" alt="Reveal approvals" /><br/><sub><b>Approvals</b> — separation of duties on high-risk reveals.</sub></td>
+<td width="50%"><img src="docs/assets/sync.png" alt="Encrypted sync" /><br/><sub><b>Sync</b> — end-to-end encrypted across your devices.</sub></td>
+</tr>
+</table>
+</div>
+
+## How it works
+
 ```
-apps/
-  daemon/       Fastify local API (127.0.0.1, Bearer token)
-  mcp-server/   MCP stdio server → HTTP bridge (12 tools)
-  desktop/      Tauri 2 + React/Vite UI (also runs as plain web app)
-packages/
-  shared/               domain model + zod schemas
-  core/                 AgentPassCore + provider ports + redaction logger
-  storage-sqlite/       Repository + SecretBlobStore (node:sqlite)
-  credential-providers/ LocalEncryptedStoreProvider (+ OpenBao/Infisical/keychain stubs)
-  checkout-providers/   TempKeyFileCheckoutProvider (+ ssh-agent stub)
-  rotation-providers/   auto-rotation stubs (manual flow lives in core)
-  gateway-adapters/     Warpgate/JumpServer stubs
-docs/    architecture, security-model, api, mcp-tools, rotation-model, open-source-reuse
-docker/  docker-compose.dev.yml (optional future backends)
+┌────────────┐   MCP (stdio)   ┌────────────┐   HTTP (127.0.0.1, Bearer)   ┌──────────────┐
+│  AI agent  │ ───────────────▶│ MCP server │ ────────────────────────────▶│    daemon    │
+│ Claude/…   │                 │  19 tools  │                              │  AgentPassCore│
+└────────────┘                 └────────────┘                              └──────┬───────┘
+                                                                                  │
+        ┌──────────────┐  auto-connects (conn.json)                        ┌──────┴───────┐
+        │ desktop app  │ ◀─────────────────────────────────────────────── │    SQLite    │
+        │  Tauri + UI  │                                                    │ AES-256-GCM  │
+        └──────────────┘                                                    └──────────────┘
 ```
 
-## Quick start
+The agent talks only to the MCP server; the daemon owns all secret material and never returns a long-term secret through the checkout path. The desktop app and daemon run on the same machine and bind to loopback only.
+
+## Install
+
+Grab the installer for your platform from the [latest release](https://github.com/sooua/agentpass/releases/latest):
+
+| Platform | Package |
+|----------|---------|
+| macOS | `.dmg` (universal — Intel + Apple Silicon) |
+| Windows | `.msi` / `.exe` |
+| Linux | `.AppImage` / `.deb` |
+
+In-app updates are delivered and signed through GitHub Releases.
+
+<details>
+<summary><b>Run from source</b></summary>
+
 ```bash
 pnpm install
-pnpm build          # tsc -b (typecheck + emit)
-pnpm test           # vitest
+pnpm build            # tsc -b
+pnpm test             # vitest
 
-# 1) start the daemon (prints its URL + local token)
-pnpm daemon
-#    → {"msg":"agentpass daemon listening","url":"http://127.0.0.1:4747","token":"...","home":"~/.agentpass"}
-
-# 2) (optional) start the MCP server for Claude Code — reads ~/.agentpass/token
-pnpm mcp
-
-# 3) (optional) desktop UI
-pnpm ui:dev         # web app at http://localhost:5273 (open Settings → paste token)
-pnpm tauri:dev      # native Tauri 2 window (needs Rust; run `pnpm --filter @agentpass/desktop exec tauri icon <png>` once)
+pnpm daemon           # local API — prints its URL + token, writes ~/.agentpass
+pnpm mcp              # MCP stdio server (reads ~/.agentpass/token)
+pnpm tauri:dev        # native desktop window (needs Rust)
 ```
-Dev without building first: `pnpm daemon:dev` (tsx watch).
-If `4747` is blocked (`EACCES` — some Windows setups reserve it), set
-`AGENTPASS_PORT=17470` (and matching `AGENTPASS_URL` for the MCP server / UI).
 
-## For AI agents (Claude Code / Codex)
+If port `4747` is reserved on your machine, set `AGENTPASS_PORT=17470` (and a matching `AGENTPASS_URL` for the MCP server and UI).
+</details>
 
-Agents reach agentpass through the **MCP server** — they never touch key files
-directly. Prereqs: the daemon is running, and your targets + credentials exist
-(create them in the desktop app's *Quick add server* form, which links a target
-to its credential in one step).
+## Connect an agent
 
-**1. Register the MCP server**
+Point your agent's MCP config at the server. The token is read automatically from `~/.agentpass/token` — keep it out of the config.
 
-Claude Code — `~/.claude.json` or a project `.mcp.json`:
 ```json
 {
   "mcpServers": {
     "agentpass": {
       "command": "node",
       "args": ["/abs/path/to/agentpass/apps/mcp-server/dist/index.js"],
-      "env": { "AGENTPASS_URL": "http://127.0.0.1:17470" }
+      "env": { "AGENTPASS_URL": "http://127.0.0.1:4747" }
     }
   }
 }
 ```
-Or: `claude mcp add agentpass -e AGENTPASS_URL=http://127.0.0.1:17470 -- node /abs/path/to/agentpass/apps/mcp-server/dist/index.js`
 
-Codex — add the same entry under `mcp_servers` in your Codex config (`command` /
-`args` / `env` identical).
+Then just ask:
 
-The token is read automatically from `~/.agentpass/token` — don't put it in the
-config. **`AGENTPASS_URL` must match the daemon's port** (use `17470` if `4747`
-is blocked on your machine). Build the server first: `pnpm build`.
+> Use agentpass to check out SSH access to `web-01`, then run the deploy.
 
-**2. Tools exposed** (19)
-```
-list_targets · search_targets · get_target · set_target_credentials
-list_credentials · reveal_secret · list_reveal_requests · approve_reveal_request
-checkout_ssh_access · revoke_checkout · get_checkout_status · list_active_checkouts
-get_rotation_status · schedule_rotation · mark_rotation_complete · list_audit_logs
-create_agent_token · list_agent_tokens · revoke_agent_token   (admin-only)
-```
+The agent finds the target, checks out an expiring SSH command, runs it, and the temporary key wipes itself on expiry — fully audited.
 
-**3. Typical flow** — "log into a VPS and deploy". Just tell Claude Code:
-> Use agentpass to check out SSH access to web-01, then run the deploy.
+> **Run agents on a scoped token, not root.** Mint a token with `reveal` · `checkout` · `list` · `rotate` and **no** `admin` (the one-click preset in the desktop app), and keep the root token for yourself. Full operational power, but the agent can't manage tokens or approve its own gated reveals. See [docs/security-model.md](docs/security-model.md).
 
-Under the hood it calls:
-1. `search_targets({ q: "web" })` → finds `web-01`
-2. `checkout_ssh_access({ target_id, purpose: "deploy", requested_by: "claude-code", ttl_seconds: 900 })`
-   → returns `ssh -F /tmp/.../config web-01`
-3. runs that command in its shell → logged in. Temp key, auto-expires (15 min), audited.
-4. `revoke_checkout` to end early (optional).
+## Security model
 
-**Two modes** (the tool descriptions steer agents to the safe one):
-- **`checkout_ssh_access`** — *recommended.* Temporary, expiring SSH access; no
-  long-term secret handed to the agent.
-- **`reveal_secret`** — *high risk.* Returns plaintext (password / token /
-  kubeconfig). Audited; may flag rotation. If policy requires approval it returns
-  `403 approval_required` → approve it in the app's **Approvals** page → the agent
-  retries with the `approval_id`. **Separation of duties:** the approver's
-  identity must differ from the requester's, so an agent can never approve its
-  own gated reveal. This only holds if the agent uses its **own scoped token**
-  (below) and you approve from the desktop (root) — if the agent runs on root it
-  can mint a second identity and self-approve. See below.
+agentpass deliberately supports revealing plaintext to agents — that is a product capability, not an oversight — and surrounds it with controls: scoped tokens enforced before the handler, separation of duties on approvals, redacted audit logs, encryption at rest, and loopback-only binding. The full threat model, trust boundaries, and the one honest limitation (an agent holding root or `admin` can mint a second identity, so approval is only a real boundary for a no-admin agent) are documented in **[docs/security-model.md](docs/security-model.md)**.
 
-Gotchas: `checkout_ssh_access` needs the target to have a linked
-`ssh_private_key` credential (set it in the UI or via `set_target_credentials`);
-password checkout returns an `sshpass`-based command (install `sshpass`); if the
-daemon is down the tools return a clear "daemon unreachable — start it" error.
+## Documentation
 
-**Scoped tokens (limit an agent's blast radius).** By default an agent uses the
-full-power root token (`~/.agentpass/token`). To give a *specific* agent only
-part of the surface, mint a **scoped token** and hand it to that agent via
-`AGENTPASS_TOKEN` in its MCP `env` (overrides the root token for that process):
+- [Architecture](docs/architecture.md)
+- [Security model](docs/security-model.md)
+- [HTTP API](docs/api.md)
+- [MCP tools](docs/mcp-tools.md)
+- [Rotation model](docs/rotation-model.md)
 
-```bash
-TOKEN=$(cat ~/.agentpass/token); H="Authorization: Bearer $TOKEN"; U=http://127.0.0.1:17470
-# a token that may only check out / list, only in dev, only on #web targets:
-curl -s -XPOST $U/agent-tokens -H "$H" -H 'content-type: application/json' -d '{
-  "name":"claude-dev","capabilities":["checkout","list"],
-  "environments":["dev"],"target_tags":["web"]
-}' | jq -r .token        # apat_… — shown ONCE, store it now
-```
-Then in `.mcp.json` set `"env": { "AGENTPASS_URL": "…", "AGENTPASS_TOKEN": "apat_…" }`.
-That agent now gets **403 forbidden** if it tries `reveal_secret`, touches a
-`prod` target, or manages tokens — and every audit entry is attributed to
-`claude-dev`, not a self-reported name. Capabilities: `reveal` · `checkout` ·
-`list` · `rotate` · `admin` (token management + CRUD). Empty `environments` /
-`target_tags` / `target_ids` = no restriction. Optional `expires_at` (ISO) for a
-TTL. Create/list/revoke in the desktop app's **Settings → Agent tokens**, or via
-`GET /agent-tokens` and `POST /agent-tokens/:id/revoke`. See
-[docs/security-model.md](docs/security-model.md#scoped-agent-tokens-b3).
+## Status
 
-> **Recommended: don't run the agent on the root token.** Give it a scoped token
-> with the four *operational* capabilities and **no `admin`** — full day-to-day
-> power (nothing in normal reveal/checkout/list/rotate work needs `admin`), but
-> it can't mint tokens or self-approve gated reveals. Keep the root token for
-> yourself / the desktop app. In the token panel this is the one-click
-> **"Recommended agent token"** preset.
->
-> ```bash
-> curl -s -XPOST $U/agent-tokens -H "$H" -H 'content-type: application/json' -d '{
->   "name":"claude-agent","capabilities":["reveal","checkout","list","rotate"]
-> }' | jq -r .token
-> ```
->
-> `admin` is the only capability that lets a token manufacture a second identity,
-> which is what defeats separation of duties — so an agent that holds `admin` (or
-> root) makes reveal approval unenforceable by design.
+First stable release (`v1.0.0`). Auto-rotation ships disabled by default — scheduled and after-reveal jobs are created and left for manual completion until a gateway provider installs the new secret on the target. The `ssh_agent_socket` checkout mode is not yet implemented; `temp_key_file` is the default and only offered mode.
 
-## Demo flow (matches acceptance criteria)
-```bash
-TOKEN=$(cat ~/.agentpass/token); H="Authorization: Bearer $TOKEN"; U=http://127.0.0.1:4747
+## License
 
-curl -s $U/health                                                    # {"status":"ok",...}
-
-# create a rotate-after-reveal policy
-POL=$(curl -s -XPOST $U/rotation-policies -H "$H" -H 'content-type: application/json' \
-  -d '{"name":"rotate-on-reveal","rotate_after_reveal":true}' | jq -r .id)
-
-# create a password credential (FAKE secret) using that policy
-CRED=$(curl -s -XPOST $U/credentials -H "$H" -H 'content-type: application/json' \
-  -d "{\"name\":\"db-pw\",\"type\":\"password\",\"secret_value\":\"FAKE-pw\",\"rotation_policy_id\":\"$POL\"}" | jq -r .id)
-
-# reveal → returns plaintext + rotation_required + rotation_job_id, writes audit
-curl -s -XPOST $U/credentials/$CRED/reveal -H "$H" -H 'content-type: application/json' \
-  -d '{"requested_by":"claude-code","purpose":"debug","ttl_seconds":300}' | jq
-
-# ssh key credential + target, then checkout → ssh_command
-KEY=$(curl -s -XPOST $U/credentials -H "$H" -H 'content-type: application/json' \
-  -d '{"name":"vps-key","type":"ssh_private_key","secret_value":"-----BEGIN FAKE KEY-----\nx\n-----END FAKE KEY-----"}' | jq -r .id)
-TGT=$(curl -s -XPOST $U/targets -H "$H" -H 'content-type: application/json' \
-  -d "{\"name\":\"web-01\",\"type\":\"ssh\",\"host\":\"10.0.0.5\",\"port\":22,\"username\":\"deploy\",\"credential_ids\":[\"$KEY\"]}" | jq -r .id)
-CHK=$(curl -s -XPOST $U/targets/$TGT/checkout -H "$H" -H 'content-type: application/json' \
-  -d '{"requested_by":"agent","purpose":"deploy","ttl_seconds":900,"mode":"temp_key_file"}')
-echo $CHK | jq                                                       # {ssh_command:"ssh -F ... web-01", ...}
-curl -s -XPOST $U/checkouts/$(echo $CHK | jq -r .checkout_id)/revoke -H "$H" | jq  # wipes temp key
-
-curl -s "$U/audit-logs?limit=20" -H "$H" | jq                        # redacted trail
-```
-
-## Config (env)
-`AGENTPASS_HOME` (default `~/.agentpass`) · `AGENTPASS_PORT` (4747) ·
-`AGENTPASS_HOST` (127.0.0.1) · `AGENTPASS_TOKEN` · `AGENTPASS_UI_DIR`
-(serve built UI from the daemon at `/ui`) · `AGENTPASS_LOG_LEVEL`.
-
-## Security
-Never commit real secrets; tests use fake values. See
-[docs/security-model.md](docs/security-model.md). Data + master key live under
-`~/.agentpass` (gitignored).
+[MIT](LICENSE) © 2026 sooua
