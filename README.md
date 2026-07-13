@@ -113,7 +113,11 @@ Under the hood it calls:
 - **`reveal_secret`** — *high risk.* Returns plaintext (password / token /
   kubeconfig). Audited; may flag rotation. If policy requires approval it returns
   `403 approval_required` → approve it in the app's **Approvals** page → the agent
-  retries with the `approval_id`.
+  retries with the `approval_id`. **Separation of duties:** the approver's
+  identity must differ from the requester's, so an agent can never approve its
+  own gated reveal. This only holds if the agent uses its **own scoped token**
+  (below) and you approve from the desktop (root) — if the agent runs on root it
+  can mint a second identity and self-approve. See below.
 
 Gotchas: `checkout_ssh_access` needs the target to have a linked
 `ssh_private_key` credential (set it in the UI or via `set_target_credentials`);
@@ -142,6 +146,23 @@ That agent now gets **403 forbidden** if it tries `reveal_secret`, touches a
 TTL. Create/list/revoke in the desktop app's **Settings → Agent tokens**, or via
 `GET /agent-tokens` and `POST /agent-tokens/:id/revoke`. See
 [docs/security-model.md](docs/security-model.md#scoped-agent-tokens-b3).
+
+> **Recommended: don't run the agent on the root token.** Give it a scoped token
+> with the four *operational* capabilities and **no `admin`** — full day-to-day
+> power (nothing in normal reveal/checkout/list/rotate work needs `admin`), but
+> it can't mint tokens or self-approve gated reveals. Keep the root token for
+> yourself / the desktop app. In the token panel this is the one-click
+> **"Recommended agent token"** preset.
+>
+> ```bash
+> curl -s -XPOST $U/agent-tokens -H "$H" -H 'content-type: application/json' -d '{
+>   "name":"claude-agent","capabilities":["reveal","checkout","list","rotate"]
+> }' | jq -r .token
+> ```
+>
+> `admin` is the only capability that lets a token manufacture a second identity,
+> which is what defeats separation of duties — so an agent that holds `admin` (or
+> root) makes reveal approval unenforceable by design.
 
 ## Demo flow (matches acceptance criteria)
 ```bash

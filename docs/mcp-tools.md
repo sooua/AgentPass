@@ -12,7 +12,7 @@
 | `set_target_credentials` | `target_id, credential_ids` | Link credentials so a target can be checked out |
 | `list_credentials` | — | Credential metadata (no secrets) |
 | `list_reveal_requests` | — | Pending/decided reveal approvals |
-| `approve_reveal_request` | `request_id, decided_by?` | Approve a gated reveal; then reveal again with `approval_id` |
+| `approve_reveal_request` | `request_id` | Approve *another* identity's gated reveal (self-approval → 403); then reveal again with `approval_id` |
 | `reveal_secret` | `credential_id, purpose, requested_by, ttl_seconds?, target_id?` | **HIGH RISK** plaintext reveal |
 | `checkout_ssh_access` | `target_id, purpose, requested_by, ttl_seconds?, mode?, credential_id?` | **Recommended** temporary SSH access |
 | `revoke_checkout` | `checkout_id` | Revoke + wipe artifacts |
@@ -37,8 +37,12 @@ token calling them gets `403 forbidden`. See [security-model.md](./security-mode
   and creates a `RotationJob(reason=after_reveal)`.
 
 ## `checkout_ssh_access` behavior
-- `mode=temp_key_file` (default) writes a 0600 key + `ssh_config`, returns
-  `ssh_command` and `expires_at`. `ssh_agent_socket` is reserved (throws until implemented).
+- `mode=temp_key_file` (only value the MCP tool accepts) writes a 0600 key +
+  `ssh_config`, returns `ssh_command` and `expires_at`. `ssh_agent_socket` is a
+  daemon-side stub, not offered by the MCP tool until implemented.
+- TTL controls key-file lifetime, not live SSH connections: an already-open
+  session survives expiry. Password mode emits an `sshpass -f …` command that
+  needs `sshpass` on PATH to run (WSL/Git-Bash on Windows).
 - Writes an audit log entry (`checkout_ssh_access`). Does **not** return a
   long-term secret — use `reveal_secret` for that.
 

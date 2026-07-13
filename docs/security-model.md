@@ -74,11 +74,11 @@ Tokens are **device-local** (like `secret_ref`s and the master key) and are
 (**Settings → Agent tokens**) or via `POST /agent-tokens`, `GET /agent-tokens`
 (metadata only, never the hash), `POST /agent-tokens/:id/revoke`.
 
-> Unlike the approval gate below, this **is** an enforcement boundary: a scoped
-> token physically cannot exceed its capabilities/environments/targets, because
-> the check runs before the handler and rejects the request. It does not yet
-> solve independent approval (see below) — an `admin` scoped token can still
-> self-approve — but a non-`admin` agent token cannot approve at all.
+> Unlike the earlier MVP, this **is** an enforcement boundary: a scoped token
+> physically cannot exceed its capabilities/environments/targets, because the
+> check runs before the handler and rejects the request. Combined with the
+> separation-of-duties rule in the approval gate below, an `admin` scoped token
+> can approve *others'* requests but not its own.
 
 ## Master key
 
@@ -97,15 +97,29 @@ retries `reveal` with `approval_id` (single-use). To avoid request spam, a
 second blocked reveal for the same (credential, requester) reuses the existing
 pending request instead of creating a new one.
 
-> ⚠️ **This is a workflow speed-bump, NOT a security boundary in the MVP.** The
-> approve endpoint is protected by the *same* single local token as `reveal`. An
-> agent that can call `reveal_secret` therefore also holds the token needed to
-> call `approve` and can self-approve. The gate only stops a caller that doesn't
-> know the approve step; it does not stop a compromised/confused agent that has
-> the token. Real enforcement needs an **independent approver credential** (a
-> second token, or approval restricted to an authenticated human UI session) —
-> tracked as a follow-up. Treat `approval_required` today as "make the reveal
-> deliberate + auditable," not "gate the agent out."
+> **Separation of duties is enforced.** The request is stamped with the
+> *authenticated* identity of the requester (`root`, or the scoped token's name —
+> never the spoofable `requested_by` body field), and `decided_by` on approve is
+> likewise the authenticated identity, not a body field. The core rejects
+> `decided_by === requested_by` with `403 forbidden`. So a caller can never
+> approve its own gated reveal — approval must come from a **different identity**.
+>
+> Practical consequence: if you run the agent on the **root** token and also
+> approve from **root** (e.g. the desktop app, which uses root), approval will be
+> refused — same identity. To use `approval_required` meaningfully, give the
+> agent its **own scoped token** (so the requester identity is that token's name)
+> and approve from root/the human UI, or from a separate `admin` token. If a
+> single root identity does everything, `approval_required` cannot be satisfied
+> by design — that is the gate working, not a bug.
+>
+> **The one hole that stays open: `admin`.** `root` and any token with the
+> `admin` capability can *mint another token* — i.e. manufacture a second
+> identity — and then approve with it. So separation of duties is only a real
+> boundary against an agent that holds **neither root nor `admin`**. This is why
+> the recommended agent token grants `reveal`/`checkout`/`list`/`rotate` but
+> **not** `admin`: it keeps full operational power while removing the one
+> capability that could forge an approver. An agent on root/`admin` should treat
+> `approval_required` as a deliberate-action speed-bump, not an enforced gate.
 
 ## File permissions
 

@@ -892,6 +892,11 @@ function AgentTokensPanel() {
           <button key={c} className={caps.includes(c) ? "on" : ""} onClick={() => toggle(caps, setCaps, c)}>{c}</button>
         ))}
       </div>
+      <div className="toolbar" style={{ marginTop: 6 }}>
+        <button className="btn btn-sm" onClick={() => { setCaps(["reveal", "checkout", "list", "rotate"]); setEnvs([]); }}>{t("atok.preset")}</button>
+        <span className="muted">{t("atok.presetHint")}</span>
+      </div>
+      {caps.includes("admin") && <div className="risk risk-high" style={{ marginTop: 8 }}>{t("atok.adminWarn")}</div>}
       <label>{t("atok.envs")}</label>
       <div className="chips">
         {ENVS.map((e) => (

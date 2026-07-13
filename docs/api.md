@@ -31,8 +31,9 @@ Base URL: `http://127.0.0.1:4747` · Auth: `Authorization: Bearer <token>`
 - A `reveal` with no `approval_id` returns `403 { error:{ code:"approval_required", data:{ reveal_request_id } } }` and opens a pending request.
 - `GET /reveal-requests` → `{ requests: RevealRequest[] }`
 - `GET /reveal-requests/:id` → `RevealRequest`
-- `POST /reveal-requests/:id/approve` `{ decided_by? }` → `RevealRequest`
-- `POST /reveal-requests/:id/deny` `{ decided_by? }` → `RevealRequest`
+- `POST /reveal-requests/:id/approve` → `RevealRequest` (`decided_by` is the authenticated caller, not a body field)
+- `POST /reveal-requests/:id/deny` → `RevealRequest`
+- **Separation of duties:** approving your own request returns `403 forbidden`; the approver's identity must differ from the requester's. See `docs/security-model.md`.
 - Then retry `reveal` with `{ ...args, approval_id: <request id> }` (single use).
 
 ## Checkout (RECOMMENDED)

@@ -39,8 +39,11 @@ export const api = {
   reveals: () => req("GET", "/reveals"),
   revokeReveal: (id: string) => req("POST", `/reveals/${id}/revoke`),
   revealRequests: () => req("GET", "/reveal-requests"),
-  approveRevealRequest: (id: string) => req("POST", `/reveal-requests/${id}/approve`, { decided_by: "desktop-ui" }),
-  denyRevealRequest: (id: string) => req("POST", `/reveal-requests/${id}/deny`, { decided_by: "desktop-ui" }),
+  // decided_by is the authenticated identity (the desktop's root token = "root");
+  // the daemon ignores any body value, so approving here always acts as "root" —
+  // distinct from an agent's scoped token, which is what makes the reveal succeed.
+  approveRevealRequest: (id: string) => req("POST", `/reveal-requests/${id}/approve`),
+  denyRevealRequest: (id: string) => req("POST", `/reveal-requests/${id}/deny`),
   checkout: (id: string, b: unknown) => req("POST", `/targets/${id}/checkout`, b),
   checkouts: () => req("GET", "/checkouts"),
   revokeCheckout: (id: string) => req("POST", `/checkouts/${id}/revoke`),
