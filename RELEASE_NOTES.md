@@ -1,4 +1,4 @@
-# AgentPass v1.0.1
+# AgentPass v1.0.2
 
 Local credential manager that gives AI agents (Claude Code, Codex, …) **scoped,
 audited, expiring** access to your servers — instead of pasting long-term secrets
@@ -25,16 +25,14 @@ into a chat. Runs entirely on your machine: a local daemon + MCP bridge + deskto
 - **Local by default.** SQLite storage, AES-256-GCM secret blobs, a 0600 master
   key, and OS-level file ACLs.
 
-## Changes since 1.0.0
+## Changes since 1.0.1
 
-- **Fix:** deleting a target or credential (and revoke / approve / deny) returned
-  a masked *internal error* — body-less requests sent a JSON content-type that
-  made the daemon try to parse an empty body. Fixed at the client.
-- Mutation failures (delete, rotation) now surface the real error instead of
-  doing nothing; scheduling a rotation shows a confirmation.
-- Record ids display in full across all list views.
-- Desktop nav gains icons; agent-token creation is simplified to Standard / Root.
-- Brand wordmark is now **AgentPass**.
+- Desktop app now ships as **AgentPass** — installer, application name, and
+  install directory use the capitalized product name (previously `agentpass`).
+  Your vault is untouched: the config directory (`~/.agentpass`) and bundle
+  identifier are unchanged. Note that the Windows/Linux install location and
+  menu entry are renamed, so a fresh installer may land beside the old
+  `agentpass` app — uninstall the old one if you don't want both.
 
 ## Install
 
