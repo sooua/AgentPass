@@ -1,4 +1,4 @@
-# AgentPass v1.0.2
+# AgentPass v1.0.3
 
 Local credential manager that gives AI agents (Claude Code, Codex, …) **scoped,
 audited, expiring** access to your servers — instead of pasting long-term secrets
@@ -25,14 +25,19 @@ into a chat. Runs entirely on your machine: a local daemon + MCP bridge + deskto
 - **Local by default.** SQLite storage, AES-256-GCM secret blobs, a 0600 master
   key, and OS-level file ACLs.
 
-## Changes since 1.0.1
+## Changes since 1.0.2
 
-- Desktop app now ships as **AgentPass** — installer, application name, and
-  install directory use the capitalized product name (previously `agentpass`).
-  Your vault is untouched: the config directory (`~/.agentpass`) and bundle
-  identifier are unchanged. Note that the Windows/Linux install location and
-  menu entry are renamed, so a fresh installer may land beside the old
-  `agentpass` app — uninstall the old one if you don't want both.
+- **The app now starts its own daemon.** Up to 1.0.2 the installer shipped only
+  the UI, so a fresh install had no daemon to talk to and every action failed
+  with `Failed to fetch` until you started one from a terminal. The daemon is now
+  bundled into the installer and launched on startup. If one is already listening
+  (`pnpm daemon`, or a second window), the app attaches to it instead of starting
+  a duplicate, and it shuts down the daemon it started when you quit.
+- **Requires Node.js 22.5 or newer.** The bundled daemon runs on your system
+  Node — the same interpreter the MCP server already uses.
+- **Startup failures are legible.** No Node on PATH, or a daemon that starts and
+  dies, now shows the reason (and the tail of `~/.agentpass/daemon.log`) in a
+  banner instead of a bare `Failed to fetch` on whatever form you were filling in.
 
 ## Install
 
@@ -42,8 +47,9 @@ Download the installer for your OS from the assets below:
 - **macOS** — `.dmg` (universal: Intel + Apple Silicon)
 - **Linux** — `.AppImage` or `.deb`
 
-Then start the daemon and point your agent's MCP config at it (see the README).
-In-app updates are delivered through GitHub Releases.
+Install [Node.js](https://nodejs.org) 22.5+ if you don't have it, then launch the
+app and point your agent's MCP config at it (see the README). In-app updates are
+delivered through GitHub Releases.
 
 ## Notes
 

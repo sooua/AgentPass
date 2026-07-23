@@ -137,7 +137,7 @@ AgentPass deliberately supports revealing plaintext to agents — that is a prod
 
 ## Status
 
-Stable release (`v1.0.2`). Auto-rotation ships disabled by default — scheduled and after-reveal jobs are created and left for manual completion until a gateway provider installs the new secret on the target. The `ssh_agent_socket` checkout mode is not yet implemented; `temp_key_file` is the default and only offered mode.
+Stable release (`v1.0.3`). Auto-rotation ships disabled by default — scheduled and after-reveal jobs are created and left for manual completion until a gateway provider installs the new secret on the target. The `ssh_agent_socket` checkout mode is not yet implemented; `temp_key_file` is the default and only offered mode.
 
 ## Brand
 
