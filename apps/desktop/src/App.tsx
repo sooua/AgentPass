@@ -25,6 +25,27 @@ async function autoConnect(): Promise<void> {
   }
 }
 
+// Why the daemon isn't up. The shell starts the bundled daemon on launch; if that
+// failed (no Node on PATH, missing resource) it parks the reason here.
+function useDaemonError(active: boolean): string {
+  const [err, setErr] = useState("");
+  useEffect(() => {
+    if (!inTauri || !active) { setErr(""); return; }
+    let live = true;
+    // Polled, not one-shot: a daemon that starts and then dies (Node too old,
+    // port taken) only becomes an error a second or two after launch.
+    const poll = async () => {
+      const { invoke } = await import("@tauri-apps/api/core");
+      const e = (await invoke("daemon_error").catch(() => null)) as string | null;
+      if (live) setErr(e ?? "");
+    };
+    void poll();
+    const id = setInterval(() => void poll(), 3000);
+    return () => { live = false; clearInterval(id); };
+  }, [active]);
+  return err;
+}
+
 type Page = "targets" | "credentials" | "reveals" | "checkouts" | "rotation" | "requests" | "audit" | "settings";
 
 // Settings is reached from the top-bar icon, not the main nav.
@@ -127,6 +148,7 @@ export default function App() {
   const [nonce, setNonce] = useState(0);
   const { t, theme, setTheme } = usePrefs();
   const connected = useLiveConnection(() => setNonce((n) => n + 1));
+  const daemonErr = useDaemonError(!connected);
   const [locked, setLocked] = useState(hasPin());
   // Idle auto-lock (only when a PIN is set).
   useEffect(() => {
@@ -157,6 +179,11 @@ export default function App() {
         </div>
         <WindowButtons />
       </div>
+      {!connected && (
+        <div className={`conn-banner ${daemonErr ? "bad" : ""}`}>
+          {daemonErr ? `${t("conn.failed")} ${daemonErr}` : t("conn.starting")}
+        </div>
+      )}
       <div className="app">
         <aside className="sidebar">
           {PAGES.map((p) => (

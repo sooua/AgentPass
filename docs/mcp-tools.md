@@ -59,4 +59,6 @@ token calling them gets `403 forbidden`. See [security-model.md](./security-mode
   }
 }
 ```
-The daemon must be running first (the MCP server reads its token file).
+The daemon must be running first (the MCP server reads its token file). Launching
+the desktop app is enough — it starts the bundled daemon itself; `pnpm daemon`
+does the same from a source checkout.

@@ -27,6 +27,8 @@ const en: Record<string, string> = {
   "common.credentials": "Credentials",
   "conn.online": "Connected to daemon",
   "conn.offline": "Daemon not reachable — retrying",
+  "conn.starting": "Starting the local daemon…",
+  "conn.failed": "The local daemon could not be started.",
   "common.delete": "Delete",
   "common.revoke": "Revoke",
   "common.cancel": "Cancel",
@@ -262,6 +264,8 @@ const zh: Record<string, string> = {
   "common.credentials": "凭据",
   "conn.online": "服务已连接",
   "conn.offline": "服务未连接,重连中",
+  "conn.starting": "正在启动本地服务…",
+  "conn.failed": "本地服务启动失败。",
   "common.delete": "删除",
   "common.revoke": "吊销",
   "common.cancel": "取消",
@@ -491,14 +495,15 @@ const initialTheme = (): Theme => {
   if (saved) return saved;
   return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 };
-const initialLang = (): Lang => {
+/** Saved language, else the OS locale. Exported because api.ts needs it outside React. */
+export const currentLang = (): Lang => {
   const saved = localStorage.getItem("agentpass.lang") as Lang | null;
   if (saved) return saved;
   return navigator.language?.toLowerCase().startsWith("zh") ? "zh" : "en";
 };
 
 export function PrefsProvider({ children }: { children: ReactNode }) {
-  const [lang, setLangState] = useState<Lang>(initialLang);
+  const [lang, setLangState] = useState<Lang>(currentLang);
   const [theme, setThemeState] = useState<Theme>(initialTheme);
 
   useEffect(() => {

@@ -70,3 +70,17 @@ future OpenBao / Infisical / Warpgate / JumpServer integrations.
 The daemon is the single source of truth and the only holder of the master key.
 The MCP server is stateless and just forwards authenticated calls, so the same
 API also backs the desktop UI and any future CLI.
+
+## How the desktop app starts the daemon
+
+`apps/daemon/build.mjs` esbuild-bundles the daemon into a single
+`apps/desktop/src-tauri/resources/daemon.mjs`, shipped as a Tauri resource. On
+launch the Rust shell checks `127.0.0.1:$AGENTPASS_PORT`; if nothing answers it
+spawns `node <resource>` and kills that child on exit. A daemon started by hand
+(`pnpm daemon`) wins — the app attaches to it rather than starting a second.
+
+A bundle plus the system Node is enough because the daemon has no native
+dependencies: SQLite comes from the `node:sqlite` builtin, which is why Node
+22.5+ is the install requirement. stdout is discarded (it carries the daemon
+token); stderr goes to `~/.agentpass/daemon.log`. Startup failures — no Node on
+PATH above all — surface in the UI through the `daemon_error` command.

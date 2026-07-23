@@ -79,6 +79,8 @@ Grab the installer for your platform from the [latest release](https://github.co
 | Windows | `.msi` / `.exe` |
 | Linux | `.AppImage` / `.deb` |
 
+**Requires [Node.js](https://nodejs.org) 22.5 or newer** — the app ships the daemon as a bundled script and starts it with your system Node on launch. Nothing else to run; if a daemon is already listening the app attaches to it instead of starting a second one.
+
 In-app updates are delivered and signed through GitHub Releases.
 
 <details>
@@ -91,7 +93,7 @@ pnpm test             # vitest
 
 pnpm daemon           # local API — prints its URL + token, writes ~/.agentpass
 pnpm mcp              # MCP stdio server (reads ~/.agentpass/token)
-pnpm tauri:dev        # native desktop window (needs Rust)
+pnpm tauri:dev        # native desktop window (needs Rust); starts its own daemon
 ```
 
 If port `4747` is reserved on your machine, set `AGENTPASS_PORT=17470` (and a matching `AGENTPASS_URL` for the MCP server and UI).

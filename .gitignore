@@ -8,6 +8,8 @@ dist/
 # Tauri
 apps/desktop/src-tauri/target/
 apps/desktop/src-tauri/gen/
+# built by apps/daemon/build.mjs, bundled into the installer
+apps/desktop/src-tauri/resources/
 
 # secrets / data — never commit
 *.sqlite

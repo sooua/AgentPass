@@ -33,7 +33,13 @@ import type { DaemonConfig } from "./config.js";
 
 // Single source of truth for the version — read from package.json so it can't
 // drift from the release. Resolves relative to this file in both dist and src.
-const { version: VERSION } = createRequire(import.meta.url)("../package.json") as { version: string };
+// The single-file bundle shipped inside the desktop app has no package.json
+// next to it, so build.mjs inlines the same value as __AGENTPASS_VERSION__.
+declare const __AGENTPASS_VERSION__: string;
+const VERSION: string =
+  typeof __AGENTPASS_VERSION__ !== "undefined"
+    ? __AGENTPASS_VERSION__
+    : (createRequire(import.meta.url)("../package.json") as { version: string }).version;
 
 /** The authenticated caller resolved by the onRequest hook. root = full-power
  * ~/.agentpass/token; token = a scoped AgentToken whose scope is enforced. */

@@ -1,4 +1,6 @@
 // Minimal daemon client. Base URL + local token live in localStorage (Settings).
+import { currentLang } from "./i18n.js";
+
 const LS_URL = "agentpass.url";
 const LS_TOKEN = "agentpass.token";
 
@@ -8,6 +10,15 @@ export const setConn = (url: string, token: string) => {
   localStorage.setItem(LS_URL, url);
   localStorage.setItem(LS_TOKEN, token);
 };
+
+// fetch() rejects with a bare "Failed to fetch" when nothing is listening, which
+// reads like a bug in the form the user was filling in. Say what actually happened.
+const unreachable = () =>
+  new Error(
+    currentLang() === "zh"
+      ? `连不上本地服务 (${getUrl()}) —— 服务未启动或端口不对`
+      : `Cannot reach the local daemon at ${getUrl()} — it is not running`,
+  );
 
 async function req(method: string, path: string, body?: unknown): Promise<any> {
   // Only send a JSON content-type when there's actually a body. A body-less
@@ -20,6 +31,8 @@ async function req(method: string, path: string, body?: unknown): Promise<any> {
       ...(body !== undefined ? { "content-type": "application/json" } : {}),
     },
     ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+  }).catch(() => {
+    throw unreachable();
   });
   const text = await res.text();
   const json = text ? JSON.parse(text) : {};

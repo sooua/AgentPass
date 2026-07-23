@@ -6,8 +6,8 @@
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://127.0.0.1:15273",
-    "beforeDevCommand": "pnpm --filter @agentpass/desktop dev",
-    "beforeBuildCommand": "pnpm --filter @agentpass/desktop build"
+    "beforeDevCommand": "pnpm --filter @agentpass/daemon build && pnpm --filter @agentpass/daemon bundle && pnpm --filter @agentpass/desktop dev",
+    "beforeBuildCommand": "pnpm --filter @agentpass/daemon build && pnpm --filter @agentpass/daemon bundle && pnpm --filter @agentpass/desktop build"
   },
   "app": {
     "windows": [
@@ -37,6 +37,7 @@
     "active": true,
     "targets": "all",
     "createUpdaterArtifacts": true,
+    "resources": ["resources/daemon.mjs"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

@@ -75,6 +75,13 @@ a { color: var(--terracotta); text-decoration: none; }
 .conn-dot.on { background: #4a9d5b; }
 .conn-dot.off { background: var(--crimson); animation: pulse 1.4s ease-in-out infinite; }
 @keyframes pulse { 50% { opacity: 0.35; } }
+/* Shown under the topbar while the daemon is down, so a failed write reads as
+   "the service isn't up" rather than a broken form. */
+.conn-banner {
+  padding: 8px 20px; font-size: 13px; color: var(--charcoal);
+  background: var(--ivory); border-bottom: 1px solid var(--border-warm);
+}
+.conn-banner.bad { color: var(--crimson); }
 .iconbtn {
   display: inline-flex; align-items: center; justify-content: center;
   width: 34px; height: 34px; border-radius: 10px; cursor: pointer; color: var(--charcoal);
