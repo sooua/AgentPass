@@ -1,6 +1,6 @@
 {
   "name": "agentpass",
-  "version": "1.0.3",
+  "version": "2.0.0",
   "private": true,
   "license": "MIT",
   "type": "module",
@@ -8,21 +8,25 @@
   "engines": {
     "node": ">=22"
   },
+  "bin": {
+    "agentpass": "./dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
   "scripts": {
-    "build": "tsc -b",
-    "typecheck": "tsc -b --noEmit || tsc -b",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts",
     "test": "vitest run",
-    "test:watch": "vitest",
-    "daemon": "pnpm --filter @agentpass/daemon start",
-    "daemon:dev": "pnpm --filter @agentpass/daemon dev",
-    "mcp": "pnpm --filter @agentpass/mcp-server start",
-    "ui:dev": "pnpm --filter @agentpass/desktop dev",
-    "tauri:dev": "pnpm --filter @agentpass/desktop tauri dev",
-    "clean": "rimraf packages/*/dist apps/*/dist"
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.13.0",
+    "zod": "^3.24.1"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
-    "rimraf": "^6.0.1",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
     "vitest": "^2.1.8"

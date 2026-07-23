@@ -1,15 +1,19 @@
 {
-  "files": [],
-  "references": [
-    { "path": "packages/shared" },
-    { "path": "packages/core" },
-    { "path": "packages/storage-sqlite" },
-    { "path": "packages/credential-providers" },
-    { "path": "packages/checkout-providers" },
-    { "path": "packages/rotation-providers" },
-    { "path": "packages/gateway-adapters" },
-    { "path": "packages/sync" },
-    { "path": "apps/daemon" },
-    { "path": "apps/mcp-server" }
-  ]
+  "compilerOptions": {
+    "target": "ES2023",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2023"],
+    "types": ["node"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "outDir": "dist",
+    "rootDir": "src",
+    "sourceMap": true,
+    "declaration": false,
+    "skipLibCheck": true
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/**/*.test.ts"]
 }

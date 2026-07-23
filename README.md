@@ -1,161 +1,108 @@
 <div align="center">
 
-<img src="docs/assets/agentpass-lockup.png" alt="AgentPass" width="400" />
+<img src="brand/logo/agentpass-terracotta.svg" alt="AgentPass" width="360" />
 
-### Give your AI agents scoped, audited, expiring access to your servers — never a pasted secret.
+### Your servers' keys, kept for your coding agent.
 
-[![Release](https://img.shields.io/github/v/release/sooua/agentpass?sort=semver)](https://github.com/sooua/agentpass/releases)
-[![Build](https://img.shields.io/github/actions/workflow/status/sooua/agentpass/release.yml)](https://github.com/sooua/agentpass/actions/workflows/release.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Platform](https://img.shields.io/badge/desktop-macOS%20%7C%20Windows%20%7C%20Linux-informational)](#install)
-
-**English** · [中文](README.zh-CN.md)
 
 </div>
 
 ---
 
-**AgentPass** is a local-first credential manager built for the age of autonomous coding agents. Claude Code, Codex, and Cursor Agent can log into your servers through it — with a temporary key that expires, not a long-lived secret dumped into a chat log. Every access is scoped to what that agent may touch, attributed to its identity, and written to an append-only audit trail. Nothing leaves your machine.
+**AgentPass** is an MCP server that remembers how to log into your machines, so
+you can tell Claude Code *"restart nginx on my vps"* and it just happens — without
+your root password living in a chat log, a shell history, or a config file in
+plaintext.
 
-<div align="center">
-<img src="docs/assets/dashboard.png" alt="AgentPass desktop" width="820" />
-</div>
-
-## Why AgentPass
-
-Handing an AI agent a raw SSH key or database password is a one-way door: the secret is now in a transcript, a shell history, a model's context. AgentPass closes that door. The agent asks for *access*, gets a credential that dies on a timer, and never holds your long-term secret at all.
-
-- **Checkout, not reveal.** The default path issues a temporary, expiring `ssh` command. The private key is materialized locally for the session and wiped on expiry — the agent never receives it.
-- **Least privilege by identity.** Each agent carries a scoped token limited by capability, environment, and target. Overreach is rejected before the request runs, and the audit log names the token, not a self-reported string.
-- **Deliberate high-risk path.** Plaintext reveal still exists for the cases that need it — audited, rotation-aware, and gated behind approval with enforced separation of duties.
-- **Local by default.** SQLite at rest, AES-256-GCM secret blobs, a 0600 master key, OS-level file ACLs, redacted logs. No cloud account, no telemetry.
-
-## Features
-
-| | |
-|---|---|
-| **🔑 Credential checkout** | Temporary, expiring SSH access via the system OpenSSH client. Long-term keys never leave the vault. |
-| **🎫 Scoped agent tokens** | Per-agent tokens at two levels: **Standard** (reveal · checkout · list · rotate across all targets) or **Root** (adds `admin`). Scope is enforced before the handler and attributed by identity. |
-| **👁 Audited reveal** | Plaintext access when you truly need it — every call logged, secrets redacted, rotation triggered by policy. |
-| **✅ Approval with separation of duties** | Gate high-risk reveals behind human approval; a requester can never approve its own request. |
-| **♻️ Rotation** | Rotate after reveal, after N reveals, or on a schedule. Approval-aware manual flow; opt-in auto-rotation. |
-| **🔄 End-to-end encrypted sync** | Cross-device sync over local dir, GitHub Gist, WebDAV, or S3 — secrets are encrypted before they leave the host. |
-| **🧩 Adapter-first** | Clean provider ports so OpenBao, Infisical, Warpgate, or JumpServer can slot in without touching business logic. |
-| **🖥 Native desktop** | Tauri 2 + React app for macOS, Windows, and Linux, with signed in-app updates. |
-
-<div align="center">
-<table>
-<tr>
-<td width="50%"><img src="docs/assets/agent-tokens.png" alt="Scoped agent tokens" /><br/><sub><b>Scoped agent tokens</b> — Standard or Root, enforced before the handler.</sub></td>
-<td width="50%"><img src="docs/assets/rotation.png" alt="Rotation jobs" /><br/><sub><b>Rotation</b> — after reveal, after N reveals, or on a schedule.</sub></td>
-</tr>
-</table>
-<sub>Warm light & dark themes · English & 中文 built in.</sub>
-</div>
-
-## How it works
+One process. No daemon, no database, no UI.
 
 ```
-┌────────────┐   MCP (stdio)   ┌────────────┐   HTTP (127.0.0.1, Bearer)   ┌──────────────┐
-│  AI agent  │ ───────────────▶│ MCP server │ ────────────────────────────▶│    daemon    │
-│ Claude/…   │                 │  19 tools  │                              │  AgentPassCore│
-└────────────┘                 └────────────┘                              └──────┬───────┘
-                                                                                  │
-        ┌──────────────┐  auto-connects (conn.json)                        ┌──────┴───────┐
-        │ desktop app  │ ◀─────────────────────────────────────────────── │    SQLite    │
-        │  Tauri + UI  │                                                    │ AES-256-GCM  │
-        └──────────────┘                                                    └──────────────┘
+you → "add my vps, 23.x.x.x, root, <password>"     → add_host
+you → "check the disk on my vps"                   → run
+                                                     ↓
+                                    ~/.agentpass/hosts.json   AES-256-GCM
+                                    ~/.agentpass/master.key   0600
 ```
 
-The agent talks only to the MCP server; the daemon owns all secret material and never returns a long-term secret through the checkout path. The desktop app and daemon run on the same machine and bind to loopback only.
+The secret is decrypted for the length of one login, written to a 0700 directory
+that is wiped afterwards, and handed to the system `ssh` client — never to the
+agent, and never into the conversation. `get_secret` exists for the times you
+genuinely need the plaintext; it says so, and it is logged.
 
 ## Install
 
-Grab the installer for your platform from the [latest release](https://github.com/sooua/agentpass/releases/latest):
-
-| Platform | Package |
-|----------|---------|
-| macOS | `.dmg` (universal — Intel + Apple Silicon) |
-| Windows | `.msi` / `.exe` |
-| Linux | `.AppImage` / `.deb` |
-
-**Requires [Node.js](https://nodejs.org) 22.5 or newer** — the app ships the daemon as a bundled script and starts it with your system Node on launch. Nothing else to run; if a daemon is already listening the app attaches to it instead of starting a second one.
-
-In-app updates are delivered and signed through GitHub Releases.
-
-<details>
-<summary><b>Run from source</b></summary>
+Needs [Node.js](https://nodejs.org) 22+ and an `ssh` client (on Windows: Git Bash,
+which every Git for Windows install ships).
 
 ```bash
-pnpm install
-pnpm build            # tsc -b
-pnpm test             # vitest
+git clone https://github.com/sooua/AgentPass.git
+cd AgentPass && pnpm install && pnpm build
 
-pnpm daemon           # local API — prints its URL + token, writes ~/.agentpass
-pnpm mcp              # MCP stdio server (reads ~/.agentpass/token)
-pnpm tauri:dev        # native desktop window (needs Rust); starts its own daemon
+claude mcp add agentpass -- node "$PWD/dist/index.js"
 ```
 
-If port `4747` is reserved on your machine, set `AGENTPASS_PORT=17470` (and a matching `AGENTPASS_URL` for the MCP server and UI).
-</details>
+That is the whole setup. There is no token to mint and no service to start.
 
-## Connect an agent
+## Use
 
-One command, no token to mint — it is read automatically from `~/.agentpass/token`:
+Talk to your agent:
 
-```bash
-claude mcp add agentpass -- node /abs/path/to/agentpass/apps/mcp-server/dist/index.js
+> Remember my VPS: 23.238.1.51, user root, password …
+
+> What's the uptime on my vps?
+
+> Give me an ssh command for my vps, I want to poke around myself.
+
+## Tools
+
+| Tool | What it does |
+|------|--------------|
+| `add_host` | Store a machine + password or private key. Encrypted at rest. |
+| `list_hosts` | What you have stored. Never includes secrets. |
+| `remove_host` | Forget one. |
+| `run` | Log in, run one command, return the output, wipe the login files. |
+| `ssh_access` | Return a ready-to-run `ssh` command instead, for interactive work. |
+| `get_secret` | Plaintext, when you really need it. Logged, with a reason. |
+
+Hosts are addressed by the name you gave them, case-insensitively — `my vps`
+finds `My VPS`.
+
+## What's on disk
+
+```
+~/.agentpass/
+  hosts.json     your machines; every secret AES-256-GCM encrypted
+  master.key     32 random bytes, 0600 (+ Windows ACL)
+  audit.jsonl    one line per action, secrets never in it
+  access/        live logins; each wiped on TTL, on exit, and at next startup
 ```
 
-<details>
-<summary>By hand (<code>~/.claude.json</code> or a project <code>.mcp.json</code>)</summary>
+Nothing leaves your machine. No account, no telemetry, no network calls except
+the SSH connection you asked for.
 
-```json
-{
-  "mcpServers": {
-    "agentpass": {
-      "command": "node",
-      "args": ["/abs/path/to/agentpass/apps/mcp-server/dist/index.js"],
-      "env": { "AGENTPASS_URL": "http://127.0.0.1:4747" }
-    }
-  }
-}
-```
-`AGENTPASS_URL` only matters if you moved the port; it defaults to `http://127.0.0.1:4747`.
-</details>
+## Honest limits
 
-Then just ask:
+- **The agent can run anything you can.** `run` is a shell on your server. That is
+  the point, and it is also the risk — the audit log tells you what it did, and
+  your agent's own tool-approval gate is what stops it beforehand.
+- **Whoever can read your user account can read the vault.** The master key sits
+  next to the data at 0600, exactly like `~/.ssh/id_rsa`. This protects against a
+  secret leaking through a chat transcript, not against someone already logged in
+  as you.
+- **`get_secret` puts plaintext in the conversation.** Once there, it is in the
+  model's context and your transcript. Prefer `run` and `ssh_access`.
+- **Password auth needs OpenSSH 8.4+** (for `SSH_ASKPASS_REQUIRE`) and, on
+  Windows, Git Bash — the stock `ssh.exe` cannot launch the askpass helper.
 
-> Use agentpass to check out SSH access to `web-01`, then run the deploy.
+## History
 
-The agent finds the target, checks out an expiring SSH command, runs it, and the temporary key wipes itself on expiry — fully audited.
-
-> **Once a vault is shared** between people or several agents, mint each agent a **Standard** token (reveal · checkout · list · rotate — no `admin`) under Advanced features in the desktop app, and keep **Root** for yourself. On a single-user vault you don't need to: the daemon's own token already is the identity. See [docs/security-model.md](docs/security-model.md).
-
-## Security model
-
-AgentPass deliberately supports revealing plaintext to agents — that is a product capability, not an oversight — and surrounds it with controls: scoped tokens enforced before the handler, separation of duties on approvals, redacted audit logs, encryption at rest, and loopback-only binding. The full threat model, trust boundaries, and the one honest limitation (an agent holding root or `admin` can mint a second identity, so approval is only a real boundary for a no-admin agent) are documented in **[docs/security-model.md](docs/security-model.md)**.
-
-## Documentation
-
-- [Architecture](docs/architecture.md)
-- [Security model](docs/security-model.md)
-- [HTTP API](docs/api.md)
-- [MCP tools](docs/mcp-tools.md)
-- [Rotation model](docs/rotation-model.md)
-
-## Status
-
-Stable release (`v1.0.3`). Auto-rotation ships disabled by default — scheduled and after-reveal jobs are created and left for manual completion until a gateway provider installs the new secret on the target. The `ssh_agent_socket` checkout mode is not yet implemented; `temp_key_file` is the default and only offered mode.
-
-## Brand
-
-<div align="center">
-<img src="docs/assets/agentpass-brand-board.png" alt="AgentPass brand — mark, wordmark, palette" width="720" />
-</div>
-
-The keyhole mark in three background-ready variants (terracotta / light / dark), the
-horizontal lockup, and the warm palette. Source SVGs and usage guidance in [`brand/logo/`](brand/logo/).
+Versions 1.x were a bigger thing: a local daemon, an HTTP API, a Tauri desktop
+app, scoped agent tokens, approval workflows with separation of duties, rotation
+policies, and end-to-end encrypted sync. All of it worked; almost none of it
+mattered for one person with a handful of servers. It is preserved in the git
+history and in the [v1.0.3 release](https://github.com/sooua/AgentPass/releases/tag/v1.0.3)
+if you need a multi-user vault.
 
 ## License
 
