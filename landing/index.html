@@ -241,48 +241,33 @@
   <section class="hero">
     <div class="wrap">
       <span class="eyebrow"><span class="dot"></span><span data-i18n="hero.eyebrow">Local-first · MIT licensed</span></span>
-      <h1 data-i18n="hero.h1">Give your AI agents the keys — on a leash.</h1>
+      <h1 data-i18n="hero.h1">Your servers' keys, kept for your coding agent.</h1>
       <p class="lede" data-i18n="hero.lede">
-        AgentPass is a local credential manager that hands AI agents like Claude Code and Codex
-        <strong>scoped, audited, expiring</strong> access to your servers — instead of pasting
-        long-term secrets into a chat. Runs entirely on your machine.
+        AgentPass is an MCP server that remembers how to log into your machines, so you can tell
+        Claude Code <strong>"restart nginx on my vps"</strong> and it just happens — without your root
+        password living in a chat log. One process. No daemon, no database, no UI.
       </p>
       <div class="hero-cta">
-        <a class="btn btn-primary" href="#install" data-i18n="hero.cta1">Download for your OS</a>
-        <a class="btn btn-ghost" href="https://github.com/sooua/agentpass" target="_blank" rel="noopener" data-i18n="hero.cta2">Read the source</a>
+        <a class="btn btn-primary" href="#install" data-i18n="hero.cta1">Get started</a>
+        <a class="btn btn-ghost" href="https://github.com/sooua/AgentPass" target="_blank" rel="noopener" data-i18n="hero.cta2">Read the source</a>
       </div>
-      <p class="hero-note" data-i18n="hero.note">Daemon + MCP bridge + desktop app · SQLite · AES-256-GCM · nothing leaves your host.</p>
+      <p class="hero-note" data-i18n="hero.note">One MCP process · AES-256-GCM at rest · nothing leaves your host.</p>
 
       <div class="terminal">
         <div class="term-bar">
           <span class="tdot" style="background:#e5484d"></span>
           <span class="tdot" style="background:#e2b53d"></span>
           <span class="tdot" style="background:#4a9d5b"></span>
-          <span class="term-title" data-i18n="term.title">agent · MCP session</span>
+          <span class="term-title" data-i18n="term.title">you · Claude Code</span>
         </div>
-        <div class="term-body"><span class="c-mut" data-i18n="term.l1"># agent asks for access — no secret ever touches the chat</span>
-<span class="c-prompt">agent&gt;</span> <span class="c-key">checkout_ssh_access</span>(target=<span class="c-str">"prod-db-01"</span>, purpose=<span class="c-str">"run migration"</span>)
-<span class="c-mut" data-i18n="term.l2">→ issued temporary key · expires in 15m · audited</span>
-  ssh -F <span class="c-str">~/.agentpass/checkouts/chk_049f…/config</span> prod-db-01
+        <div class="term-body"><span class="c-mut" data-i18n="term.l1"># you say it once, in plain language</span>
+<span class="c-prompt">you&gt;</span> <span class="c-str">remember my vps: 23.238.1.51, root, &lt;password&gt;</span>
+<span class="c-mut" data-i18n="term.l2">→ add_host · encrypted at rest · never returned again</span>
 
-<span class="c-prompt">agent&gt;</span> <span class="c-key">reveal_secret</span>(<span class="c-str">"stripe_live_key"</span>)
-<span class="c-mut" data-i18n="term.l3">→ blocked · policy requires approval · request created</span>
-  <span class="c-mut" data-i18n="term.l4">waiting on operator in Approvals…</span></div>
-      </div>
-    </div>
-  </section>
-
-  <!-- product shots -->
-  <section id="app">
-    <div class="wrap">
-      <div class="sec-head" style="max-width:48ch;">
-        <div class="kicker" data-i18n="shots.kicker">Warm, quiet, native</div>
-        <h2 data-i18n="shots.h2">A desktop app that stays out of the way.</h2>
-        <p data-i18n="shots.p">Register servers, mint scoped tokens, approve reveals, and read the audit — in light or dark, English or 中文.</p>
-      </div>
-      <div class="shot-grid">
-        <figure class="shot"><img src="assets/dashboard.png" alt="AgentPass — targets" loading="lazy" /><figcaption class="cap" data-i18n="shots.cap1">Register servers and credentials — light theme.</figcaption></figure>
-        <figure class="shot"><img src="assets/rotation.png" alt="AgentPass — rotation" loading="lazy" /><figcaption class="cap" data-i18n="shots.cap3">Rotation jobs with full audit ids — dark theme.</figcaption></figure>
+<span class="c-prompt">you&gt;</span> <span class="c-str">what's the disk looking like on my vps?</span>
+<span class="c-key">run</span>(<span class="c-str">"my vps"</span>, <span class="c-str">"df -h /"</span>)
+  /dev/vda1  111G  50G  57G  47% /
+<span class="c-mut" data-i18n="term.l3">→ logged in, ran it, wiped the login files</span></div>
       </div>
     </div>
   </section>
@@ -291,46 +276,28 @@
   <section id="features">
     <div class="wrap">
       <div class="sec-head">
-        <div class="kicker" data-i18n="feat.kicker">Least privilege, by default</div>
-        <h2 data-i18n="feat.h2">Access an agent can use, but never keep.</h2>
-        <p data-i18n="feat.p">Every capability is scoped, time-boxed, and written to an append-only audit log.</p>
+        <div class="kicker" data-i18n="feat.kicker">Six tools, no ceremony</div>
+        <h2 data-i18n="feat.h2">Access your agent can use, but never keep.</h2>
+        <p data-i18n="feat.p">The secret is decrypted for the length of one login and gone afterwards.</p>
       </div>
       <div class="grid">
         <div class="card">
           <div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
-          <h3 data-i18n="f1.h">Checkout over reveal</h3>
-          <p data-i18n="f1.p">Hand the agent a temporary, expiring <code>ssh</code> command — no long-term key ever leaves the vault. Plaintext reveal stays available but is the high-risk path.</p>
-          <span class="tag" data-i18n="f1.t">temp_key_file</span>
+          <h3 data-i18n="f1.h">Ask, don't paste</h3>
+          <p data-i18n="f1.p"><code>run</code> logs in, runs one command, hands back the output, and wipes the login files. Your password is never in the request, the reply, or the transcript.</p>
+          <span class="tag" data-i18n="f1.t">run · ssh_access</span>
         </div>
         <div class="card">
-          <div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/></svg></div>
-          <h3 data-i18n="f2.h">Scoped agent tokens</h3>
-          <p data-i18n="f2.p">Give each agent its own token — <strong>Standard</strong> for day-to-day work, or <strong>Root</strong> for full power. Scope is enforced before the request runs and attributed by identity.</p>
-          <span class="tag" data-i18n="f2.t">Standard · Root</span>
-        </div>
-        <div class="card">
-          <div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><path d="M12 3l7 4v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V7z"/></svg></div>
-          <h3 data-i18n="f3.h">Separation of duties</h3>
-          <p data-i18n="f3.p">When a credential's policy needs approval, the requester can <strong>never</strong> approve its own reveal. The approver must be a different identity — approve from the desktop while the agent runs on its scoped token.</p>
-          <span class="tag" data-i18n="f3.t">approval-gated</span>
-        </div>
-        <div class="card">
-          <div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg></div>
-          <h3 data-i18n="f4.h">Rotation</h3>
-          <p data-i18n="f4.p">Rotate after a reveal, after N reveals, or on a schedule — with an approval-aware manual flow and opt-in auto-rotation.</p>
-          <span class="tag" data-i18n="f4.t">policy-driven</span>
-        </div>
-        <div class="card">
-          <div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 10 10"/><path d="M12 6v6l4 2"/><path d="M16 2l4 4-4 4"/></svg></div>
-          <h3 data-i18n="f5.h">E2E-encrypted sync</h3>
-          <p data-i18n="f5.p">Cross-device sync over a local dir, GitHub Gist, WebDAV, or S3 — secrets are encrypted before they leave the host, with tombstone-based deletion and item-level merge.</p>
-          <span class="tag" data-i18n="f5.t">ciphertext only</span>
+          <div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 4v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V7z"/><path d="M9 12l2 2 4-4"/></svg></div>
+          <h3 data-i18n="f2.h">Encrypted at rest</h3>
+          <p data-i18n="f2.p">Machines live in one AES-256-GCM encrypted file beside a <code>0600</code> master key, with an ACL on Windows. Listings never include a secret.</p>
+          <span class="tag" data-i18n="f2.t">hosts.json</span>
         </div>
         <div class="card">
           <div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18"/><circle cx="7" cy="7" r="0.5" fill="currentColor"/></svg></div>
-          <h3 data-i18n="f6.h">Local by default</h3>
-          <p data-i18n="f6.p">SQLite storage, AES-256-GCM secret blobs, a <code>0600</code> master key, and OS-level file ACLs. No cloud account required — ever.</p>
-          <span class="tag" data-i18n="f6.t">on your machine</span>
+          <h3 data-i18n="f3.h">One process</h3>
+          <p data-i18n="f3.p">No service to start, no port to bind, no token to mint, no window to open. It runs when your agent runs and stops when it stops.</p>
+          <span class="tag" data-i18n="f3.t">stdio MCP</span>
         </div>
       </div>
     </div>
@@ -342,25 +309,25 @@
       <div class="sec-lead">
         <div>
           <div class="kicker" data-i18n="sec.kicker">Security model</div>
-          <h2 data-i18n="sec.h2">Built for the moment an agent goes off-script.</h2>
-          <p class="lead-p" data-i18n="sec.p">The threat model assumes the agent is capable and occasionally wrong. Every path is scoped, expiring, and logged — so a mistake is contained, not catastrophic.</p>
+          <h2 data-i18n="sec.h2">Honest about what it does and doesn't protect.</h2>
+          <p class="lead-p" data-i18n="sec.p">This keeps your secrets out of a chat transcript. It does not defend against someone already logged in as you — the master key sits next to the data, exactly like your SSH keys do.</p>
         </div>
         <div class="slist">
           <div class="srow">
             <div class="sk"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 4v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V7z"/></svg></div>
-            <div><h4 data-i18n="s1.h">Encrypted at rest</h4><p data-i18n="s1.p">AES-256-GCM secret blobs behind a 0600 master key with OS-level ACLs. Secrets never appear in listings, errors, or logs.</p></div>
+            <div><h4 data-i18n="s1.h">Encrypted at rest</h4><p data-i18n="s1.p">AES-256-GCM behind a 0600 master key with OS-level ACLs. A secret never appears in a listing, an error, or the audit log.</p></div>
           </div>
           <div class="srow">
             <div class="sk"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v4l3 2"/><circle cx="12" cy="12" r="9"/></svg></div>
-            <div><h4 data-i18n="s2.h">Everything expires</h4><p data-i18n="s2.p">Checkouts and reveals are time-boxed; revoking a checkout wipes on-disk key artifacts immediately.</p></div>
+            <div><h4 data-i18n="s2.h">Every login is temporary</h4><p data-i18n="s2.p">Login files land in a 0700 directory and are wiped when the command returns, when the TTL expires, and again at next startup in case the process was killed.</p></div>
           </div>
           <div class="srow">
             <div class="sk"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v14H5.2L4 20z"/><path d="M8 9h8M8 13h5"/></svg></div>
-            <div><h4 data-i18n="s3.h">Append-only audit</h4><p data-i18n="s3.p">Every reveal, checkout, rotation, and approval is recorded — redacted, attributed by identity, newest first.</p></div>
+            <div><h4 data-i18n="s3.h">Append-only audit</h4><p data-i18n="s3.p">One line per action — what ran, on which machine, and how it exited. Secrets are never in it.</p></div>
           </div>
           <div class="srow">
-            <div class="sk"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12l2.5 2.5L16 9"/></svg></div>
-            <div><h4 data-i18n="s4.h">No self-approval</h4><p data-i18n="s4.p">An agent on a Standard token can request a gated reveal but can't approve it. Root — which can — is for humans, not agents.</p></div>
+            <div class="sk"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5"/><path d="M12 16h.01"/></svg></div>
+            <div><h4 data-i18n="s4.h">The agent gets a shell</h4><p data-i18n="s4.p">That is the point, and it is also the risk. Your agent's own tool-approval gate is what stops a command before it runs; the audit log is what tells you afterwards.</p></div>
           </div>
         </div>
       </div>
@@ -371,21 +338,21 @@
   <section id="how">
     <div class="wrap">
       <div class="sec-head">
-        <div class="kicker" data-i18n="how.kicker">Three steps</div>
-        <h2 data-i18n="how.h2">Wire it up once. Your agents just ask.</h2>
+        <div class="kicker" data-i18n="how.kicker">Two steps</div>
+        <h2 data-i18n="how.h2">Wire it up once. Then just talk.</h2>
       </div>
       <div class="flow">
         <div class="step">
-          <h3 data-i18n="h1.h">Run the daemon</h3>
-          <p data-i18n="h1.p">Start AgentPass on your machine. It stores targets and credentials locally and publishes a local endpoint for the MCP bridge.</p>
+          <h3 data-i18n="h1.h">Add the MCP server</h3>
+          <p data-i18n="h1.p">One <code>claude mcp add</code> line. There is nothing to start and no token to create — the vault is created the first time you use it.</p>
         </div>
         <div class="step">
-          <h3 data-i18n="h2.h">Point your agent at it</h3>
-          <p data-i18n="h2.p">Add the MCP server to Claude Code or Codex. Mint a scoped token from the desktop app and drop it in the agent's config.</p>
+          <h3 data-i18n="h2.h">Tell your agent about a machine</h3>
+          <p data-i18n="h2.p">"Remember my VPS: …". It is encrypted immediately and addressed by the name you gave it, however you capitalize it later.</p>
         </div>
         <div class="step">
-          <h3 data-i18n="h3.h">Agents check out access</h3>
-          <p data-i18n="h3.p">The agent calls <code>checkout_ssh_access</code> or a gated <code>reveal_secret</code>. You watch, approve, and audit — all from the desktop.</p>
+          <h3 data-i18n="h3.h">Ask for things</h3>
+          <p data-i18n="h3.p">"Check the disk on my vps." The agent calls <code>run</code>, or asks for an <code>ssh</code> command when you want to poke around yourself.</p>
         </div>
       </div>
     </div>
@@ -396,16 +363,23 @@
     <div class="wrap">
       <div class="sec-head" style="margin: 0 auto 8px; text-align:center;">
         <div class="kicker" data-i18n="inst.kicker">Get AgentPass</div>
-        <h2 data-i18n="inst.h2">Download the desktop app.</h2>
-        <p style="margin-left:auto;margin-right:auto;" data-i18n="inst.p">Signed installers for every desktop OS. In-app updates ship through GitHub Releases.</p>
+        <h2 data-i18n="inst.h2">Two commands.</h2>
+        <p style="margin-left:auto;margin-right:auto;" data-i18n="inst.p">Needs Node.js 22+ and an ssh client — on Windows, the Git Bash that ships with Git.</p>
       </div>
-      <div class="os-row">
-        <div class="os"><span class="osname">Windows</span><span class="fmt">.msi · .exe</span></div>
-        <div class="os"><span class="osname">macOS</span><span class="fmt">.dmg · universal</span></div>
-        <div class="os"><span class="osname">Linux</span><span class="fmt">.AppImage · .deb</span></div>
+      <div class="terminal" style="text-align:left;">
+        <div class="term-bar">
+          <span class="tdot" style="background:#e5484d"></span>
+          <span class="tdot" style="background:#e2b53d"></span>
+          <span class="tdot" style="background:#4a9d5b"></span>
+          <span class="term-title">setup</span>
+        </div>
+        <div class="term-body"><span class="c-prompt">$</span> git clone https://github.com/sooua/AgentPass.git
+<span class="c-prompt">$</span> cd AgentPass &amp;&amp; pnpm install &amp;&amp; pnpm build
+
+<span class="c-prompt">$</span> claude mcp add agentpass -- node <span class="c-str">"$PWD/dist/index.js"</span></div>
       </div>
       <div style="margin-top:36px;">
-        <a class="btn btn-primary" href="https://github.com/sooua/agentpass/releases" target="_blank" rel="noopener" data-i18n="inst.btn">All downloads on GitHub Releases</a>
+        <a class="btn btn-primary" href="https://github.com/sooua/AgentPass" target="_blank" rel="noopener" data-i18n="inst.btn">See it on GitHub</a>
       </div>
     </div>
   </section>
@@ -415,10 +389,10 @@
     <div class="wrap">
       <div class="band-inner">
         <h2 data-i18n="band.h2">Stop pasting secrets into chats.</h2>
-        <p data-i18n="band.p">Give your agents access they can use and you can revoke — with a full audit trail behind every request.</p>
+        <p data-i18n="band.p">Your agent gets the access. You keep the password.</p>
         <div style="display:flex; gap:12px; justify-content:center; flex-wrap:wrap;">
-          <a class="btn btn-primary" href="#install" data-i18n="band.cta1">Download AgentPass</a>
-          <a class="btn btn-dark" href="https://github.com/sooua/agentpass" target="_blank" rel="noopener" data-i18n="band.cta2">Star on GitHub</a>
+          <a class="btn btn-primary" href="#install" data-i18n="band.cta1">Get started</a>
+          <a class="btn btn-dark" href="https://github.com/sooua/AgentPass" target="_blank" rel="noopener" data-i18n="band.cta2">Star on GitHub</a>
         </div>
       </div>
     </div>
@@ -447,78 +421,61 @@
     "nav.features": { en: "Features", zh: "功能" },
     "nav.security": { en: "Security", zh: "安全" },
     "nav.how": { en: "How it works", zh: "工作方式" },
-    "nav.install": { en: "Install", zh: "下载" },
-    "nav.download": { en: "Download", zh: "下载" },
+    "nav.install": { en: "Install", zh: "安装" },
+    "nav.download": { en: "Get started", zh: "开始使用" },
     "hero.eyebrow": { en: "Local-first · MIT licensed", zh: "本地优先 · MIT 许可" },
-    "hero.h1": { en: "Give your AI agents the keys — on a leash.", zh: "把钥匙交给 AI 智能体 —— 但拴着绳。" },
+    "hero.h1": { en: "Your servers' keys, kept for your coding agent.", zh: "替你的编码 agent 保管服务器钥匙。" },
     "hero.lede": {
-      en: "AgentPass is a local credential manager that hands AI agents like Claude Code and Codex <strong>scoped, audited, expiring</strong> access to your servers — instead of pasting long-term secrets into a chat. Runs entirely on your machine.",
-      zh: "AgentPass 是本地凭据管理器,给 Claude Code、Codex 这类 AI 智能体<strong>受限、可审计、会过期</strong>的服务器访问 —— 而不是把长期密钥贴进对话。全程只在你本机运行。"
+      en: "AgentPass is an MCP server that remembers how to log into your machines, so you can tell Claude Code <strong>\"restart nginx on my vps\"</strong> and it just happens — without your root password living in a chat log. One process. No daemon, no database, no UI.",
+      zh: "AgentPass 是一个 MCP server,替你记住每台机器怎么登录。你跟 Claude Code 说<strong>「重启我 vps 上的 nginx」</strong>,它就做了 —— root 密码不会留在对话记录里。一个进程,没有后台服务、没有数据库、没有界面。"
     },
-    "hero.cta1": { en: "Download for your OS", zh: "下载对应系统版本" },
+    "hero.cta1": { en: "Get started", zh: "开始使用" },
     "hero.cta2": { en: "Read the source", zh: "查看源码" },
-    "hero.note": { en: "Daemon + MCP bridge + desktop app · SQLite · AES-256-GCM · nothing leaves your host.", zh: "服务 + MCP 桥 + 桌面应用 · SQLite · AES-256-GCM · 数据不出本机。" },
-    "term.title": { en: "agent · MCP session", zh: "智能体 · MCP 会话" },
-    "term.l1": { en: "# agent asks for access — no secret ever touches the chat", zh: "# 智能体请求访问 —— 密钥从不进入对话" },
-    "term.l2": { en: "→ issued temporary key · expires in 15m · audited", zh: "→ 已签发临时密钥 · 15 分钟后过期 · 已审计" },
-    "term.l3": { en: "→ blocked · policy requires approval · request created", zh: "→ 已拦截 · 策略需审批 · 已创建请求" },
-    "term.l4": { en: "waiting on operator in Approvals…", zh: "等待审批页操作员处理…" },
-    "feat.kicker": { en: "Least privilege, by default", zh: "默认最小权限" },
-    "feat.h2": { en: "Access an agent can use, but never keep.", zh: "智能体能用、却带不走的访问。" },
-    "feat.p": { en: "Every capability is scoped, time-boxed, and written to an append-only audit log.", zh: "每项能力都受限、有时效,并写入只追加的审计日志。" },
-    "f1.h": { en: "Checkout over reveal", zh: "签出优先于暴露" },
-    "f1.p": { en: "Hand the agent a temporary, expiring <code>ssh</code> command — no long-term key ever leaves the vault. Plaintext reveal stays available but is the high-risk path.", zh: "给智能体一条临时、会过期的 <code>ssh</code> 命令 —— 长期密钥永不离开保险库。明文暴露仍可用,但属高风险路径。" },
-    "f1.t": { en: "temp_key_file", zh: "temp_key_file" },
-    "f2.h": { en: "Scoped agent tokens", zh: "受限智能体令牌" },
-    "f2.p": { en: "Give each agent its own token — <strong>Standard</strong> for day-to-day work, or <strong>Root</strong> for full power. Scope is enforced before the request runs and attributed by identity.", zh: "给每个智能体独立令牌 —— <strong>标准</strong>用于日常,或 <strong>Root</strong> 给完全权限。作用域在请求执行前强制,并按身份归因。" },
-    "f2.t": { en: "Standard · Root", zh: "标准 · Root" },
-    "f3.h": { en: "Separation of duties", zh: "职责分离" },
-    "f3.p": { en: "When a credential's policy needs approval, the requester can <strong>never</strong> approve its own reveal. The approver must be a different identity — approve from the desktop while the agent runs on its scoped token.", zh: "当凭据策略需审批时,申请者<strong>永远</strong>不能批准自己的暴露。审批者必须是另一身份 —— 从桌面审批,智能体则用受限令牌运行。" },
-    "f3.t": { en: "approval-gated", zh: "受审批约束" },
-    "f4.h": { en: "Rotation", zh: "轮换" },
-    "f4.p": { en: "Rotate after a reveal, after N reveals, or on a schedule — with an approval-aware manual flow and opt-in auto-rotation.", zh: "暴露后、N 次暴露后,或按计划轮换 —— 含审批感知的手动流程与可选自动轮换。" },
-    "f4.t": { en: "policy-driven", zh: "策略驱动" },
-    "f5.h": { en: "E2E-encrypted sync", zh: "端到端加密同步" },
-    "f5.p": { en: "Cross-device sync over a local dir, GitHub Gist, WebDAV, or S3 — secrets are encrypted before they leave the host, with tombstone-based deletion and item-level merge.", zh: "通过本地目录、GitHub Gist、WebDAV 或 S3 跨设备同步 —— 密钥离开本机前先加密,基于墓碑的删除传播与条目级合并。" },
-    "f5.t": { en: "ciphertext only", zh: "只传密文" },
-    "f6.h": { en: "Local by default", zh: "默认本地" },
-    "f6.p": { en: "SQLite storage, AES-256-GCM secret blobs, a <code>0600</code> master key, and OS-level file ACLs. No cloud account required — ever.", zh: "SQLite 存储、AES-256-GCM 密钥块、<code>0600</code> 主密钥、OS 级文件 ACL。永不需要云账号。" },
-    "f6.t": { en: "on your machine", zh: "只在你本机" },
+    "hero.note": { en: "One MCP process · AES-256-GCM at rest · nothing leaves your host.", zh: "单个 MCP 进程 · 静态 AES-256-GCM 加密 · 数据不出本机。" },
+    "term.title": { en: "you · Claude Code", zh: "你 · Claude Code" },
+    "term.l1": { en: "# you say it once, in plain language", zh: "# 说一次,用人话" },
+    "term.l2": { en: "→ add_host · encrypted at rest · never returned again", zh: "→ add_host · 已加密落盘 · 此后不再返回" },
+    "term.l3": { en: "→ logged in, ran it, wiped the login files", zh: "→ 登录、执行、擦掉登录文件" },
+    "feat.kicker": { en: "Six tools, no ceremony", zh: "六个工具,没有繁文缛节" },
+    "feat.h2": { en: "Access your agent can use, but never keep.", zh: "agent 能用、却带不走的访问。" },
+    "feat.p": { en: "The secret is decrypted for the length of one login and gone afterwards.", zh: "密钥只在一次登录期间解密,用完即消失。" },
+    "f1.h": { en: "Ask, don't paste", zh: "开口就行,别再贴密码" },
+    "f1.p": { en: "<code>run</code> logs in, runs one command, hands back the output, and wipes the login files. Your password is never in the request, the reply, or the transcript.", zh: "<code>run</code> 登录、执行一条命令、返回输出、擦掉登录文件。密码不在请求里、不在回复里、不在对话记录里。" },
+    "f1.t": { en: "run · ssh_access", zh: "run · ssh_access" },
+    "f2.h": { en: "Encrypted at rest", zh: "静态加密" },
+    "f2.p": { en: "Machines live in one AES-256-GCM encrypted file beside a <code>0600</code> master key, with an ACL on Windows. Listings never include a secret.", zh: "所有机器存在一个 AES-256-GCM 加密文件里,旁边是 <code>0600</code> 主密钥,Windows 上另加 ACL。列表里永远没有密钥。" },
+    "f2.t": { en: "hosts.json", zh: "hosts.json" },
+    "f3.h": { en: "One process", zh: "一个进程" },
+    "f3.p": { en: "No service to start, no port to bind, no token to mint, no window to open. It runs when your agent runs and stops when it stops.", zh: "没有服务要开、没有端口要占、没有令牌要发、没有窗口要点。agent 跑它就跑,agent 停它就停。" },
+    "f3.t": { en: "stdio MCP", zh: "stdio MCP" },
     "sec.kicker": { en: "Security model", zh: "安全模型" },
-    "sec.h2": { en: "Built for the moment an agent goes off-script.", zh: "为智能体「失控的那一刻」而设计。" },
-    "sec.p": { en: "The threat model assumes the agent is capable and occasionally wrong. Every path is scoped, expiring, and logged — so a mistake is contained, not catastrophic.", zh: "威胁模型假设智能体很能干、偶尔会错。每条路径都受限、会过期、被记录 —— 让失误被控制,而非酿成灾难。" },
+    "sec.h2": { en: "Honest about what it does and doesn't protect.", zh: "它防什么、不防什么,说清楚。" },
+    "sec.p": { en: "This keeps your secrets out of a chat transcript. It does not defend against someone already logged in as you — the master key sits next to the data, exactly like your SSH keys do.", zh: "它防的是密钥漏进对话记录。它不防已经登进你账号的人 —— 主密钥就放在数据旁边,跟你的 SSH 私钥一模一样。" },
     "s1.h": { en: "Encrypted at rest", zh: "静态加密" },
-    "s1.p": { en: "AES-256-GCM secret blobs behind a 0600 master key with OS-level ACLs. Secrets never appear in listings, errors, or logs.", zh: "AES-256-GCM 密钥块 + 0600 主密钥 + OS 级 ACL。密钥不出现在列表、错误或日志中。" },
-    "s2.h": { en: "Everything expires", zh: "一切都会过期" },
-    "s2.p": { en: "Checkouts and reveals are time-boxed; revoking a checkout wipes on-disk key artifacts immediately.", zh: "签出和暴露都有时效;吊销签出会立即擦除落盘的密钥文件。" },
+    "s1.p": { en: "AES-256-GCM behind a 0600 master key with OS-level ACLs. A secret never appears in a listing, an error, or the audit log.", zh: "AES-256-GCM,后面是 0600 主密钥和系统级 ACL。密钥不出现在列表、报错或审计日志里。" },
+    "s2.h": { en: "Every login is temporary", zh: "每次登录都是临时的" },
+    "s2.p": { en: "Login files land in a 0700 directory and are wiped when the command returns, when the TTL expires, and again at next startup in case the process was killed.", zh: "登录文件写进 0700 目录,命令返回时擦、TTL 到期时擦、下次启动再扫一遍 —— 以防进程被强杀。" },
     "s3.h": { en: "Append-only audit", zh: "只追加审计" },
-    "s3.p": { en: "Every reveal, checkout, rotation, and approval is recorded — redacted, attributed by identity, newest first.", zh: "每次暴露、签出、轮换、审批都被记录 —— 已脱敏、按身份归因、最新在前。" },
-    "s4.h": { en: "No self-approval", zh: "禁止自我审批" },
-    "s4.p": { en: "An agent on a Standard token can request a gated reveal but can't approve it. Root — which can — is for humans, not agents.", zh: "标准令牌的智能体可请求受审批暴露,但不能批准。能批准的 Root 是给人的,不是给智能体。" },
-    "how.kicker": { en: "Three steps", zh: "三步" },
-    "how.h2": { en: "Wire it up once. Your agents just ask.", zh: "接一次线,之后智能体只管请求。" },
-    "h1.h": { en: "Run the daemon", zh: "启动服务" },
-    "h1.p": { en: "Start AgentPass on your machine. It stores targets and credentials locally and publishes a local endpoint for the MCP bridge.", zh: "在你本机启动 AgentPass。它本地存储目标与凭据,并为 MCP 桥发布一个本地端点。" },
-    "h2.h": { en: "Point your agent at it", zh: "把智能体指向它" },
-    "h2.p": { en: "Add the MCP server to Claude Code or Codex. Mint a scoped token from the desktop app and drop it in the agent's config.", zh: "把 MCP 服务器加进 Claude Code 或 Codex。从桌面应用创建受限令牌,填进智能体配置。" },
-    "h3.h": { en: "Agents check out access", zh: "智能体签出访问" },
-    "h3.p": { en: "The agent calls <code>checkout_ssh_access</code> or a gated <code>reveal_secret</code>. You watch, approve, and audit — all from the desktop.", zh: "智能体调用 <code>checkout_ssh_access</code> 或受审批的 <code>reveal_secret</code>。你在桌面观察、审批、审计。" },
+    "s3.p": { en: "One line per action — what ran, on which machine, and how it exited. Secrets are never in it.", zh: "每个动作一行 —— 跑了什么、在哪台机器、退出码多少。里面没有密钥。" },
+    "s4.h": { en: "The agent gets a shell", zh: "agent 拿到的是一个 shell" },
+    "s4.p": { en: "That is the point, and it is also the risk. Your agent's own tool-approval gate is what stops a command before it runs; the audit log is what tells you afterwards.", zh: "这既是意义所在,也是风险所在。事前拦住命令的是 agent 自己的工具审批;事后告诉你的是审计日志。" },
+    "how.kicker": { en: "Two steps", zh: "两步" },
+    "how.h2": { en: "Wire it up once. Then just talk.", zh: "接一次线,之后只管说话。" },
+    "h1.h": { en: "Add the MCP server", zh: "把 MCP server 加上" },
+    "h1.p": { en: "One <code>claude mcp add</code> line. There is nothing to start and no token to create — the vault is created the first time you use it.", zh: "一行 <code>claude mcp add</code>。没有服务要启动、没有令牌要创建 —— 第一次用的时候库自己就建好了。" },
+    "h2.h": { en: "Tell your agent about a machine", zh: "把机器告诉 agent" },
+    "h2.p": { en: "\"Remember my VPS: …\". It is encrypted immediately and addressed by the name you gave it, however you capitalize it later.", zh: "「记一下我的 VPS:…」。立刻加密存好,之后按你起的名字找它,大小写随便写。" },
+    "h3.h": { en: "Ask for things", zh: "直接提要求" },
+    "h3.p": { en: "\"Check the disk on my vps.\" The agent calls <code>run</code>, or asks for an <code>ssh</code> command when you want to poke around yourself.", zh: "「看看我 vps 的磁盘。」agent 去调 <code>run</code>;你想自己动手时,它就给你一条 <code>ssh</code> 命令。" },
     "inst.kicker": { en: "Get AgentPass", zh: "获取 AgentPass" },
-    "inst.h2": { en: "Download the desktop app.", zh: "下载桌面应用。" },
-    "inst.p": { en: "Signed installers for every desktop OS. In-app updates ship through GitHub Releases.", zh: "每个桌面系统都有签名安装包。应用内更新通过 GitHub Releases 推送。" },
-    "inst.btn": { en: "All downloads on GitHub Releases", zh: "全部下载见 GitHub Releases" },
+    "inst.h2": { en: "Two commands.", zh: "两条命令。" },
+    "inst.p": { en: "Needs Node.js 22+ and an ssh client — on Windows, the Git Bash that ships with Git.", zh: "需要 Node.js 22+ 和一个 ssh 客户端 —— Windows 上用 Git 自带的 Git Bash。" },
+    "inst.btn": { en: "See it on GitHub", zh: "去 GitHub 看看" },
     "band.h2": { en: "Stop pasting secrets into chats.", zh: "别再把密钥贴进对话。" },
-    "band.p": { en: "Give your agents access they can use and you can revoke — with a full audit trail behind every request.", zh: "给智能体可用、你可吊销的访问 —— 每个请求背后都有完整审计。" },
-    "band.cta1": { en: "Download AgentPass", zh: "下载 AgentPass" },
+    "band.p": { en: "Your agent gets the access. You keep the password.", zh: "访问给 agent,密码留给你自己。" },
+    "band.cta1": { en: "Get started", zh: "开始使用" },
     "band.cta2": { en: "Star on GitHub", zh: "去 GitHub 点 Star" },
-    "foot.small": { en: "MIT licensed · Local-first · © 2026", zh: "MIT 许可 · 本地优先 · © 2026" },
-    "shots.kicker": { en: "Warm, quiet, native", zh: "温暖、克制、原生" },
-    "shots.h2": { en: "A desktop app that stays out of the way.", zh: "一个不打扰你的桌面应用。" },
-    "shots.p": { en: "Register servers, mint scoped tokens, approve reveals, and read the audit — in light or dark, English or 中文.", zh: "注册服务器、创建受限令牌、审批暴露、查看审计 —— 明暗主题、中英文皆可。" },
-    "shots.cap1": { en: "Register servers and credentials — light theme.", zh: "注册服务器与凭据 —— 浅色主题。" },
-    "shots.cap2": { en: "Standard / Root agent tokens, scoped by identity.", zh: "标准 / Root 智能体令牌,按身份限定作用域。" },
-    "shots.cap3": { en: "Rotation jobs with full audit ids — dark theme.", zh: "轮换任务含完整审计 ID —— 深色主题。" },
-    "shots.cap4": { en: "Every screen themed warm, in dark too.", zh: "每个页面都是暖色调,深色也不例外。" }
+    "foot.small": { en: "MIT licensed · Local-first · © 2026", zh: "MIT 许可 · 本地优先 · © 2026" }
   };
 
   function setLang(l) {

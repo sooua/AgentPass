@@ -10,11 +10,11 @@ terracotta keyhole. Credential + access, in the Claude warm design language.
 | `logo-brand.svg` | Terracotta plate + ivory keyhole. Brand moments / hero. |
 | `logo-dark.svg` | Sand plate + terracotta keyhole. Dark (near-black) sections. |
 | `logo-mono.svg` | Single colour via `currentColor`. Set `color:` on the parent. Small sizes, print, one-colour contexts. |
-| `app-icon.svg` | 1024² full-bleed squircle. Source for OS app icons / Tauri. |
+| `app-icon.svg` | 1024² full-bleed squircle. Source for OS app icons. |
 | `lockup-horizontal.svg` | Mark + `AgentPass` wordmark, side by side. |
 
-The app also ships `apps/desktop/public/logo.svg` (sidebar) and
-`apps/desktop/public/favicon.svg` (browser tab), both = primary.
+The landing page inlines the mark as an SVG symbol rather than linking a file —
+2.0 has no application window to put an icon in.
 
 ## Palette
 | Token | Hex | Role |
@@ -37,10 +37,7 @@ The app also ships `apps/desktop/public/logo.svg` (sidebar) and
 - Don't add drop shadows, gradients, or outlines to the filled variants.
 - Don't stretch — scale uniformly. Don't put `logo-primary` on a dark background (use `logo-dark`).
 
-## Regenerate OS icons
-```bash
-# from repo root, needs @tauri-apps/cli (already a desktop devDep)
-pnpm --filter @agentpass/desktop exec tauri icon brand/app-icon.png
-# → writes apps/desktop/src-tauri/icons/* (png set, .ico, .icns)
-```
-`app-icon.png` is a 1024² raster of `app-icon.svg` (regenerate from the SVG if the mark changes).
+`app-icon.png` is a 1024² raster of `app-icon.svg` (regenerate from the SVG if
+the mark changes). It is kept for anything that needs a square app icon; the
+1.x desktop build that consumed it is in the [v1.0.3
+release](https://github.com/sooua/AgentPass/releases/tag/v1.0.3).
