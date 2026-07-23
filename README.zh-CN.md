@@ -101,7 +101,14 @@ pnpm tauri:dev        # 原生桌面窗口(需 Rust);会自行拉起 daemon
 
 ## 接入 agent
 
-把 agent 的 MCP 配置指向 server。token 会自动从 `~/.agentpass/token` 读取——别写进配置。
+一条命令,不用发令牌——token 自动从 `~/.agentpass/token` 读取:
+
+```bash
+claude mcp add agentpass -- node /abs/path/to/agentpass/apps/mcp-server/dist/index.js
+```
+
+<details>
+<summary>手写配置(<code>~/.claude.json</code> 或项目 <code>.mcp.json</code>)</summary>
 
 ```json
 {
@@ -114,6 +121,8 @@ pnpm tauri:dev        # 原生桌面窗口(需 Rust);会自行拉起 daemon
   }
 }
 ```
+`AGENTPASS_URL` 只在改过端口时才需要,默认就是 `http://127.0.0.1:4747`。
+</details>
 
 然后直接说:
 
@@ -121,7 +130,7 @@ pnpm tauri:dev        # 原生桌面窗口(需 Rust);会自行拉起 daemon
 
 agent 找到目标、checkout 一条会过期的 SSH 命令、执行它,临时密钥过期自动擦除——全程审计。
 
-> **让 agent 用标准令牌,别用 Root。** 在桌面应用里建一个**标准**令牌(reveal · checkout · list · rotate,不含 `admin`),把 **Root** 留给你自己。保留全部操作能力,但 agent 无法管理令牌、也无法批准自己的受审批 reveal。见 [docs/security-model.md](docs/security-model.md)。
+> **多人或多 agent 共用一个库时**,再去桌面应用的「高级功能」里给每个 agent 发一个**标准**令牌(reveal · checkout · list · rotate,不含 `admin`),把 **Root** 留给你自己。单人自用不必——daemon 自己的 token 已经够了。见 [docs/security-model.md](docs/security-model.md)。
 
 ## 安全模型
 

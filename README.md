@@ -101,7 +101,14 @@ If port `4747` is reserved on your machine, set `AGENTPASS_PORT=17470` (and a ma
 
 ## Connect an agent
 
-Point your agent's MCP config at the server. The token is read automatically from `~/.agentpass/token` — keep it out of the config.
+One command, no token to mint — it is read automatically from `~/.agentpass/token`:
+
+```bash
+claude mcp add agentpass -- node /abs/path/to/agentpass/apps/mcp-server/dist/index.js
+```
+
+<details>
+<summary>By hand (<code>~/.claude.json</code> or a project <code>.mcp.json</code>)</summary>
 
 ```json
 {
@@ -114,6 +121,8 @@ Point your agent's MCP config at the server. The token is read automatically fro
   }
 }
 ```
+`AGENTPASS_URL` only matters if you moved the port; it defaults to `http://127.0.0.1:4747`.
+</details>
 
 Then just ask:
 
@@ -121,7 +130,7 @@ Then just ask:
 
 The agent finds the target, checks out an expiring SSH command, runs it, and the temporary key wipes itself on expiry — fully audited.
 
-> **Run agents on a Standard token, not Root.** In the desktop app, mint a **Standard** token (reveal · checkout · list · rotate — no `admin`) and keep **Root** for yourself. Full operational power, but the agent can't manage tokens or approve its own gated reveals. See [docs/security-model.md](docs/security-model.md).
+> **Once a vault is shared** between people or several agents, mint each agent a **Standard** token (reveal · checkout · list · rotate — no `admin`) under Advanced features in the desktop app, and keep **Root** for yourself. On a single-user vault you don't need to: the daemon's own token already is the identity. See [docs/security-model.md](docs/security-model.md).
 
 ## Security model
 

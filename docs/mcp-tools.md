@@ -41,8 +41,9 @@ token calling them gets `403 forbidden`. See [security-model.md](./security-mode
   `ssh_config`, returns `ssh_command` and `expires_at`. `ssh_agent_socket` is a
   daemon-side stub, not offered by the MCP tool until implemented.
 - TTL controls key-file lifetime, not live SSH connections: an already-open
-  session survives expiry. Password mode emits an `sshpass -f …` command that
-  needs `sshpass` on PATH to run (WSL/Git-Bash on Windows).
+  session survives expiry. Password credentials feed the password to the system
+  ssh through `SSH_ASKPASS` (no `sshpass`, which has no Windows build); the
+  command carries the env vars, so run it in a POSIX shell.
 - Writes an audit log entry (`checkout_ssh_access`). Does **not** return a
   long-term secret — use `reveal_secret` for that.
 

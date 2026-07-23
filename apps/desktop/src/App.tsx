@@ -63,15 +63,21 @@ function useUpdateOnLaunch(): UpdateInfo | null {
 type Page = "targets" | "credentials" | "reveals" | "checkouts" | "rotation" | "requests" | "audit" | "settings";
 
 // Settings is reached from the top-bar icon, not the main nav.
-const PAGES: { id: Page; key: string; Icon: LucideIcon }[] = [
+// `advanced` pages are for the policy-driven workflows (scheduled rotation,
+// gated reveals). A single-user vault sets none of that up, so they stay out of
+// the way until Settings turns them on.
+const PAGES: { id: Page; key: string; Icon: LucideIcon; advanced?: true }[] = [
   { id: "targets", key: "nav.targets", Icon: Server },
   { id: "credentials", key: "nav.credentials", Icon: KeyRound },
   { id: "reveals", key: "nav.reveals", Icon: Eye },
   { id: "checkouts", key: "nav.checkouts", Icon: Terminal },
-  { id: "rotation", key: "nav.rotation", Icon: RefreshCw },
-  { id: "requests", key: "nav.requests", Icon: Inbox },
+  { id: "rotation", key: "nav.rotation", Icon: RefreshCw, advanced: true },
+  { id: "requests", key: "nav.requests", Icon: Inbox, advanced: true },
   { id: "audit", key: "nav.audit", Icon: ScrollText },
 ];
+
+const LS_ADVANCED = "agentpass.advanced";
+const showAdvanced = (): boolean => localStorage.getItem(LS_ADVANCED) === "1";
 
 const Badge = ({ v }: { v: string }) => <span className={`badge badge-${v}`}>{v}</span>;
 const short = (s: string | null | undefined) => (s ? s.slice(0, 14) + "…" : "—");
@@ -213,7 +219,7 @@ export default function App() {
       )}
       <div className="app">
         <aside className="sidebar">
-          {PAGES.map((p) => (
+          {PAGES.filter((p) => !p.advanced || showAdvanced()).map((p) => (
             <div key={p.id} className={`navlink ${page === p.id ? "active" : ""}`} onClick={() => setPage(p.id)}>
               <p.Icon size={17} /> {t(p.key)}
             </div>
@@ -1020,7 +1026,18 @@ function Settings() {
   };
   return (
     <>
-      <AgentTokensPanel />
+      <div className="card">
+        <h3>{t("settings.advancedTitle")}</h3>
+        <div className="muted" style={{ marginBottom: 10 }}>{t("settings.advancedHint")}</div>
+        <label className="toolbar" style={{ cursor: "pointer" }}>
+          <input
+            type="checkbox" defaultChecked={showAdvanced()}
+            onChange={(e) => { localStorage.setItem(LS_ADVANCED, e.target.checked ? "1" : "0"); location.reload(); }}
+          />
+          {t("settings.advancedToggle")}
+        </label>
+      </div>
+      {showAdvanced() && <AgentTokensPanel />}
       <div className="card">
         <h3>{t("settings.connTitle")}</h3>
         <label>{t("settings.url")}</label>

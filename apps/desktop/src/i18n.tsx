@@ -122,6 +122,9 @@ const en: Record<string, string> = {
 
   "settings.title": "Settings",
   "settings.sub": "Connection, security, sync and appearance.",
+  "settings.advancedTitle": "Advanced features",
+  "settings.advancedHint": "Rotation schedules, gated reveals and agent tokens. A single-user vault needs none of them — the daemon's own token already works.",
+  "settings.advancedToggle": "Show advanced features",
   "settings.connTitle": "Daemon connection",
   "settings.url": "Daemon URL",
   "settings.token": "Local auth token",
@@ -359,6 +362,9 @@ const zh: Record<string, string> = {
 
   "settings.title": "设置",
   "settings.sub": "连接、安全、同步与外观。",
+  "settings.advancedTitle": "高级功能",
+  "settings.advancedHint": "轮换计划、受审批的 reveal、agent 令牌。单人用一个都不需要 —— daemon 自己的 token 就能用。",
+  "settings.advancedToggle": "显示高级功能",
   "settings.connTitle": "服务连接",
   "settings.url": "服务地址",
   "settings.token": "本地鉴权令牌",

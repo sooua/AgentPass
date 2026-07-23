@@ -337,7 +337,7 @@ describe("ssh checkout", () => {
     expect(existsSync(chk.checkout_path!)).toBe(false);
   });
 
-  it("checks out a password credential via sshpass", async () => {
+  it("checks out a password credential via SSH_ASKPASS", async () => {
     const cred = await core.createCredential({
       name: "vps-pw", type: "password", provider: "local_encrypted",
       secret_value: "FAKE-pw", metadata: {}, rotation_policy_id: null,
@@ -347,7 +347,7 @@ describe("ssh checkout", () => {
       tags: [], environment: "dev", credential_ids: [cred.id],
     });
     const chk = await core.checkout(target.id, { purpose: "deploy", requested_by: "agent", ttl_seconds: 900, mode: "temp_key_file" });
-    expect(chk.ssh_command).toContain("sshpass -f");
+    expect(chk.ssh_command).toContain("SSH_ASKPASS_REQUIRE=force");
     expect(chk.ssh_command).toContain("ssh -F");
     // password must not leak into the returned command
     expect(chk.ssh_command).not.toContain("FAKE-pw");
