@@ -140,6 +140,41 @@ export class Store {
     return info;
   }
 
+  /**
+   * Change anything about a stored host, secret included. Exists so that fixing
+   * a port or shortening a name does not mean deleting the entry and typing the
+   * password out again.
+   */
+  update(name: string, changes: Partial<Omit<Host, "secret" | "added_at">>, secret?: string): HostInfo {
+    const hosts = this.read();
+    const i = hosts.findIndex((h) => h.name.toLowerCase() === name.trim().toLowerCase());
+    if (i < 0) throw new Error(`no host named "${name}"`);
+    const current = hosts[i] as Host;
+
+    const newName = changes.name?.trim();
+    if (newName && newName.toLowerCase() !== current.name.toLowerCase()) {
+      if (hosts.some((h) => h.name.toLowerCase() === newName.toLowerCase())) {
+        throw new Error(`a host named "${newName}" already exists`);
+      }
+    }
+    // Switching auth type without a new secret would leave a password where a
+    // private key is expected, and every login would fail in a confusing way.
+    if (changes.auth && changes.auth !== current.auth && !secret) {
+      throw new Error("changing auth type needs the new password or private key");
+    }
+
+    const updated: Host = {
+      ...current,
+      ...changes,
+      name: newName || current.name,
+      secret: secret ? encrypt(this.key, secret) : current.secret,
+    };
+    hosts[i] = updated;
+    this.write(hosts);
+    const { secret: _secret, ...info } = updated;
+    return info;
+  }
+
   remove(name: string): boolean {
     const hosts = this.read();
     const left = hosts.filter((h) => h.name.toLowerCase() !== name.trim().toLowerCase());
@@ -150,6 +185,16 @@ export class Store {
 
   /** Decrypt one host's secret. Every caller of this writes an audit line. */
   secretOf(host: Host): string {
-    return decrypt(this.key, host.secret);
+    try {
+      return decrypt(this.key, host.secret);
+    } catch {
+      // A wrong key fails as a GCM tag mismatch, which reads like a bug in the
+      // tool. It almost always means master.key was replaced or lost, and no
+      // stored secret is recoverable without the original.
+      throw new Error(
+        `cannot decrypt "${host.name}" — ${join(this.dir, "master.key")} does not match this vault. ` +
+          `If that file was deleted or replaced, the stored secrets are gone; re-add the host.`,
+      );
+    }
   }
 }

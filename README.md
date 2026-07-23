@@ -60,6 +60,7 @@ Talk to your agent:
 |------|--------------|
 | `add_host` | Store a machine + password or private key. Encrypted at rest. |
 | `list_hosts` | What you have stored. Never includes secrets. |
+| `update_host` | Change a name, address, port or secret without re-entering the rest. |
 | `remove_host` | Forget one. |
 | `run` | Log in, run one command, return the output, wipe the login files. |
 | `ssh_access` | Return a ready-to-run `ssh` command instead, for interactive work. |

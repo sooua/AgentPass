@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import { Store } from "./store.js";
-import { materialize, sweep, wipe } from "./ssh.js";
+import { clip, materialize, sweep, wipe } from "./ssh.js";
 
 const dir = mkdtempSync(join(tmpdir(), "agentpass-test-"));
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
@@ -29,6 +29,32 @@ describe("store", () => {
     store.add({ name: "my vps", host: "10.0.0.2", user: "root", port: 22, auth: "password" }, "pw2");
     expect(store.list()).toHaveLength(1);
     expect(store.get("My VPS").host).toBe("10.0.0.2");
+  });
+
+  it("renames without being handed the password again", () => {
+    const info = store.update("my vps", { name: "vps" });
+
+    expect(info.name).toBe("vps");
+    expect(store.secretOf(store.get("vps"))).toBe("pw2");
+    expect(() => store.get("My VPS")).toThrow();
+    store.update("vps", { name: "My VPS" }); // put it back for the tests below
+  });
+
+  it("refuses a rename onto an existing host, and an auth switch with no secret", () => {
+    store.add({ name: "other", host: "10.0.0.9", user: "root", port: 22, auth: "password" }, "pw3");
+
+    expect(() => store.update("My VPS", { name: "other" })).toThrow(/already exists/);
+    expect(() => store.update("My VPS", { auth: "key" })).toThrow(/needs the new password/);
+    expect(store.secretOf(store.get("My VPS"))).toBe("pw2"); // nothing half-applied
+    store.remove("other");
+  });
+
+  it("says so when the master key no longer matches", () => {
+    const stranger = new Store(join(dir, "other-vault"));
+    stranger.add({ name: "x", host: "h", user: "u", port: 22, auth: "password" }, "s");
+    const foreign = { ...stranger.get("x"), name: "My VPS" };
+
+    expect(() => store.secretOf(foreign)).toThrow(/master\.key does not match|does not match this vault/);
   });
 
   it("removes", () => {
@@ -57,6 +83,16 @@ describe("ssh access", () => {
     expect(m.command).toMatch(/^ssh -F '.*\/config' my-vps$/);
     expect(m.command).not.toContain("\\");
     expect(readFileSync(join(m.dir, "config"), "utf8")).not.toContain("\\");
+  });
+
+  it("gives up on an unreachable host instead of burning the whole timeout", () => {
+    const m = materialize(join(dir, "a4"), { ...host, auth: "key" }, "KEY");
+    expect(readFileSync(join(m.dir, "config"), "utf8")).toContain("ConnectTimeout");
+  });
+
+  it("marks truncated output rather than silently cutting it", () => {
+    expect(clip("hello", 10)).toBe("hello");
+    expect(clip("hello", 4)).toBe("hell\n…[agentpass] truncated, 1 more bytes");
   });
 
   it("sweeps stale access dirs left behind by a killed process", () => {

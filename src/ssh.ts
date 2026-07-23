@@ -40,6 +40,10 @@ export function materialize(dir: string, host: Host, secret: string): Materializ
     `    User ${host.user}`,
     `    Port ${host.port}`,
     `    StrictHostKeyChecking accept-new`,
+    // Without this a powered-off machine burns the caller's whole timeout doing
+    // nothing. Ten seconds is long enough for a slow link, short enough that
+    // "the box is down" comes back as an answer rather than a hang.
+    `    ConnectTimeout 10`,
   ];
 
   if (host.auth === "password") {
@@ -118,6 +122,16 @@ export function run(m: Materialized, command: string, timeoutMs: number): Promis
       resolve({ exit_code: code, stdout: stdout.trim(), stderr: stderr.trim() });
     });
   });
+}
+
+/**
+ * Cut long output down, and say so. Silence here is dangerous: an agent handed
+ * the first 100 kB of a log with no marker will reason about it as if it were
+ * the whole thing and answer confidently wrong.
+ */
+export function clip(text: string, max: number): string {
+  if (text.length <= max) return text;
+  return `${text.slice(0, max)}\n…[agentpass] truncated, ${text.length - max} more bytes`;
 }
 
 export const wipe = (dir: string): void => rmSync(dir, { recursive: true, force: true });

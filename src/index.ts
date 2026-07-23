@@ -3,14 +3,17 @@
 // coding agent temporary access to them. One process, no daemon, no UI.
 import { appendFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
+import { createRequire } from "node:module";
 import { join } from "node:path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { Store } from "./store.js";
-import { materialize, run, sweep, wipe } from "./ssh.js";
+import { clip, materialize, run, sweep, wipe } from "./ssh.js";
 
-const VERSION = "2.0.0";
+// From package.json so it cannot drift from the release. dist/index.js sits one
+// level below it, same as src/index.ts does.
+const { version: VERSION } = createRequire(import.meta.url)("../package.json") as { version: string };
 const DEFAULT_TTL = 900;
 const MAX_OUTPUT = 100_000;
 
@@ -68,6 +71,39 @@ server.registerTool(
 );
 
 server.registerTool(
+  "update_host",
+  {
+    title: "Change a stored server",
+    description:
+      "Change a stored server's name, address, user, port or secret. Only pass what changes — everything else is kept, so renaming a host does not mean typing its password again.",
+    inputSchema: {
+      name: hostArg,
+      new_name: z.string().optional(),
+      host: z.string().optional(),
+      user: z.string().optional(),
+      port: z.number().int().positive().max(65535).optional(),
+      password: z.string().optional(),
+      private_key: z.string().optional().describe("PEM private key contents"),
+    },
+  },
+  async ({ name, new_name, host, user, port, password, private_key }) => {
+    if (password && private_key) return fail("give at most one of password or private_key");
+    const secret = private_key ?? password;
+    const changes = {
+      ...(new_name ? { name: new_name } : {}),
+      ...(host ? { host } : {}),
+      ...(user ? { user } : {}),
+      ...(port ? { port } : {}),
+      ...(secret ? { auth: private_key ? ("key" as const) : ("password" as const) } : {}),
+    };
+    if (!Object.keys(changes).length && !secret) return fail("nothing to change");
+    const info = store.update(name, changes, secret);
+    audit("update_host", info.name, { fields: Object.keys(changes), secret_changed: Boolean(secret) });
+    return ok(info);
+  },
+);
+
+server.registerTool(
   "remove_host",
   { title: "Forget a server", description: "Delete a stored server and its secret.", inputSchema: { name: hostArg } },
   async ({ name }) => {
@@ -120,8 +156,8 @@ server.registerTool(
       audit("run", host.name, { command, exit_code: r.exit_code });
       return ok({
         exit_code: r.exit_code,
-        stdout: r.stdout.slice(0, MAX_OUTPUT),
-        stderr: r.stderr.slice(0, MAX_OUTPUT),
+        stdout: clip(r.stdout, MAX_OUTPUT),
+        stderr: clip(r.stderr, MAX_OUTPUT),
       });
     } finally {
       wipe(dir);
