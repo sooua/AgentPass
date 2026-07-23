@@ -82,6 +82,7 @@ a { color: var(--terracotta); text-decoration: none; }
   background: var(--ivory); border-bottom: 1px solid var(--border-warm);
 }
 .conn-banner.bad { color: var(--crimson); }
+.conn-banner.row { display: flex; align-items: center; gap: 12px; }
 .iconbtn {
   display: inline-flex; align-items: center; justify-content: center;
   width: 34px; height: 34px; border-radius: 10px; cursor: pointer; color: var(--charcoal);

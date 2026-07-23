@@ -46,6 +46,20 @@ function useDaemonError(active: boolean): string {
   return err;
 }
 
+// One update check on launch. Settings still has the manual check — this only
+// saves the user from having to go looking for it.
+function useUpdateOnLaunch(): UpdateInfo | null {
+  const [info, setInfo] = useState<UpdateInfo | null>(null);
+  useEffect(() => {
+    let live = true;
+    void checkForUpdate().then((r) => {
+      if (live && r.state === "available") setInfo(r.info);
+    });
+    return () => { live = false; };
+  }, []);
+  return info;
+}
+
 type Page = "targets" | "credentials" | "reveals" | "checkouts" | "rotation" | "requests" | "audit" | "settings";
 
 // Settings is reached from the top-bar icon, not the main nav.
@@ -149,6 +163,8 @@ export default function App() {
   const { t, theme, setTheme } = usePrefs();
   const connected = useLiveConnection(() => setNonce((n) => n + 1));
   const daemonErr = useDaemonError(!connected);
+  const update = useUpdateOnLaunch();
+  const [updating, setUpdating] = useState(false);
   const [locked, setLocked] = useState(hasPin());
   // Idle auto-lock (only when a PIN is set).
   useEffect(() => {
@@ -182,6 +198,17 @@ export default function App() {
       {!connected && (
         <div className={`conn-banner ${daemonErr ? "bad" : ""}`}>
           {daemonErr ? `${t("conn.failed")} ${daemonErr}` : t("conn.starting")}
+        </div>
+      )}
+      {update && (
+        <div className="conn-banner row">
+          <span>{t("update.available")}: v{update.version}</span>
+          <button
+            className="btn-primary btn btn-sm" disabled={updating}
+            onClick={() => { setUpdating(true); void installAndRestart(update).catch(() => setUpdating(false)); }}
+          >
+            {updating ? t("update.installing") : t("update.install")}
+          </button>
         </div>
       )}
       <div className="app">
