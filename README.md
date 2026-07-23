@@ -44,6 +44,9 @@ claude mcp add agentpass -- node "$PWD/dist/index.js"
 
 That is the whole setup. There is no token to mint and no service to start.
 
+Detailed walkthrough, worked scenarios and a troubleshooting table:
+**[使用说明 (中文)](USAGE.zh-CN.md)**.
+
 ## Use
 
 Talk to your agent:
